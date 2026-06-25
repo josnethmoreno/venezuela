@@ -13,6 +13,9 @@ export interface Mascota {
   informanteEmail: string | null;
   estatus: "Perdido" | "Encontrado" | "A Salvo";
   creadoEn: string;
+  fuente?: string;
+  externalId?: string | null;
+  prioridad?: number;
 }
 
 export const MOCK_MASCOTAS: Mascota[] = [];

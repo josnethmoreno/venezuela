@@ -44,7 +44,11 @@ create table if not exists public.personas_desaparecidas (
     informante_telefono text not null,
     informante_email text,
     estatus text default 'Desaparecido' check (estatus in ('Desaparecido', 'Localizado')),
-    creado_en timestamp with time zone default timezone('utc'::text, now()) not null
+    fuente text not null default 'directo',
+    external_id text,
+    prioridad integer not null default 1,
+    creado_en timestamp with time zone default timezone('utc'::text, now()) not null,
+    constraint personas_desaparecidas_fuente_external_id_key unique (fuente, external_id)
 );
 
 -- Habilitar RLS
@@ -113,7 +117,11 @@ create table if not exists public.mascotas (
     informante_telefono text not null,
     informante_email text,
     estatus text default 'Perdido' check (estatus in ('Perdido', 'Encontrado', 'A Salvo')),
-    creado_en timestamp with time zone default timezone('utc'::text, now()) not null
+    fuente text not null default 'directo',
+    external_id text,
+    prioridad integer not null default 1,
+    creado_en timestamp with time zone default timezone('utc'::text, now()) not null,
+    constraint mascotas_fuente_external_id_key unique (fuente, external_id)
 );
 
 -- Habilitar RLS
@@ -148,4 +156,26 @@ on public.reportes_centros_acopio for select using (true);
 
 create policy "Permitir inserción pública de reportes de centros" 
 on public.reportes_centros_acopio for insert with check (true);
+
+
+-- =========================================================================
+-- MIGRACIÓN PARA BASE DE DATOS EXISTENTE (Ejecutar en el SQL Editor de Supabase)
+-- =========================================================================
+-- 1. Migración para la tabla personas_desaparecidas
+-- ALTER TABLE public.personas_desaparecidas
+-- ADD COLUMN IF NOT EXISTS fuente text NOT NULL DEFAULT 'directo',
+-- ADD COLUMN IF NOT EXISTS external_id text,
+-- ADD COLUMN IF NOT EXISTS prioridad integer NOT NULL DEFAULT 1;
+-- 
+-- ALTER TABLE public.personas_desaparecidas
+-- ADD CONSTRAINT personas_desaparecidas_fuente_external_id_key UNIQUE (fuente, external_id);
+-- 
+-- 2. Migración para la tabla mascotas
+-- ALTER TABLE public.mascotas
+-- ADD COLUMN IF NOT EXISTS fuente text NOT NULL DEFAULT 'directo',
+-- ADD COLUMN IF NOT EXISTS external_id text,
+-- ADD COLUMN IF NOT EXISTS prioridad integer NOT NULL DEFAULT 1;
+-- 
+-- ALTER TABLE public.mascotas
+-- ADD CONSTRAINT mascotas_fuente_external_id_key UNIQUE (fuente, external_id);
 

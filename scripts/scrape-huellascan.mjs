@@ -1,13 +1,12 @@
 /**
- * scrape-venezuelareporta.mjs
+ * scrape-huellascan.mjs
  *
- * Scraping de venezuelareporta.org (17,000+ personas)
- * El sitio usa Next.js SSR — los datos vienen en el HTML de cada página.
- * Usamos parsing de HTML con regex para extraer: UUID, nombre, edad, ubicación,
- * foto y estado.
+ * Scraping de www.huellascan.com/terremoto/ver-todos (700+ mascotas)
+ * Descarga y parsea el HTML página por página utilizando un delimitador de bloques,
+ * e inserta/actualiza los datos en tu base de datos de Supabase (tabla mascotas).
  *
  * Uso:
- *   node scripts/scrape-venezuelareporta.mjs
+ *   node scripts/scrape-huellascan.mjs
  */
 
 import { readFileSync } from "fs";
@@ -30,8 +29,8 @@ function loadEnv() {
 }
 
 const env = loadEnv();
-const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error("❌ Faltan credenciales de Supabase en .env.local");
@@ -41,146 +40,135 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ─── Config ──────────────────────────────────────────────────────────────────
-const BASE_URL = "https://venezuelareporta.org";
-const DELAY_MS = 800;           // pausa entre requests (más conservador para HTML scraping)
-const BATCH_SIZE = 50;          // registros por upsert a Supabase
+const BASE_URL = "https://www.huellascan.com/terremoto/ver-todos";
+const DELAY_MS = 800; // pausa conservadora entre requests
+const BATCH_SIZE = 50;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// ─── Parsear personas de un bloque HTML ──────────────────────────────────────
-function parsePersonasFromHTML(html) {
-  const personas = [];
-
-  // Patrón de cada card: <a class="card ..." href="/reporte/{uuid}">...</a>
-  // Capturamos el bloque completo de cada card
-  const cardRegex = /href="\/reporte\/([0-9a-f-]{36})">([\s\S]*?)<\/a>/g;
-  let match;
-
-  while ((match = cardRegex.exec(html)) !== null) {
-    const uuid = match[1];
-    const cardHtml = match[2];
-
-    // Estado: chip class
-    let estado = "Desaparecido";
-    if (cardHtml.includes("bg-salvo-soft") || cardHtml.includes("A salvo")) {
-      estado = "Localizado";
-    } else if (cardHtml.includes("bg-encontrado-soft") || cardHtml.includes("Encontrado")) {
-      estado = "Localizado";
-    }
-
-    // Estado de chip
-    const chipMatch = cardHtml.match(/>Se busca<|>A salvo<|>Encontrado</);
-    if (chipMatch) {
-      if (chipMatch[0].includes("Se busca")) estado = "Desaparecido";
-      else if (chipMatch[0].includes("A salvo") || chipMatch[0].includes("Encontrado")) estado = "Localizado";
-    }
-
-    // Foto
-    let fotoUrl = null;
-    const imgMatch = cardHtml.match(/src="(https:\/\/[^"]+supabase[^"]+)"/);
-    if (imgMatch) fotoUrl = imgMatch[1];
-    // También puede ser de otra CDN
-    if (!fotoUrl) {
-      const imgMatch2 = cardHtml.match(/src="(https:\/\/[^"]+\.(jpg|jpeg|png|webp))"/i);
-      if (imgMatch2) fotoUrl = imgMatch2[1];
-    }
-
-    // Nombre: <h3 class="...">Nombre</h3>
-    const nombreMatch = cardHtml.match(/<h3[^>]*>([\s\S]*?)<\/h3>/);
-    const nombre = nombreMatch
-      ? nombreMatch[1].replace(/<[^>]+>/g, "").trim()
-      : "Sin nombre";
-
-    // Info: <p class="...">edad años · ubicación</p>
-    const infoMatch = cardHtml.match(/<p[^>]*class="[^"]*truncate[^"]*"[^>]*>([\s\S]*?)<\/p>/);
-    let edad = 0;
-    let ubicacion = "";
-
-    if (infoMatch) {
-      // Limpiar HTML comments y tags
-      const infoText = infoMatch[1]
-        .replace(/<!--[^>]*-->/g, "")
-        .replace(/<[^>]+>/g, "")
-        .trim();
-
-      // Intentar extraer "N años · ubicación"
-      const edadUbicacionMatch = infoText.match(/^(\d+)\s*años\s*·?\s*(.*)/s);
-      if (edadUbicacionMatch) {
-        edad = Math.min(parseInt(edadUbicacionMatch[1], 10), 120);
-        ubicacion = edadUbicacionMatch[2].trim();
-      } else {
-        // Puede que solo tenga ubicación sin edad
-        ubicacion = infoText.replace(/\d+\s*años\s*·?\s*/g, "").trim();
-      }
-    }
-
-    if (!nombre || nombre === "Sin nombre") continue;
-    if (!uuid) continue;
-
-    personas.push({ uuid, nombre, edad, ubicacion, fotoUrl, estado });
+// ─── Helpers para Inferencia y Mapeo ──────────────────────────────────────────
+function inferirEspecie(nombre, senas, ubicacion) {
+  const text = `${nombre} ${senas} ${ubicacion}`.toLowerCase();
+  if (text.includes("gato") || text.includes("gatito") || text.includes("gata") || 
+      text.includes("gatita") || text.includes("felino") || text.includes("michi") || 
+      text.includes("misu") || text.includes("minino")) {
+    return "Gato";
   }
-
-  return personas;
+  return "Perro"; // Por defecto es perro, ya que representa la gran mayoría de reportes
 }
 
-// ─── Mapear al schema de Supabase ────────────────────────────────────────────
 function inferirEstado(ubicacion) {
   const u = (ubicacion || "").toLowerCase();
   if (u.includes("caracas") || u.includes("dtto") || u.includes("distrito capital") ||
       u.includes("altamira") || u.includes("las mercedes") || u.includes("san bernardino") ||
-      u.includes("el junquito") || u.includes("junquito")) return "Distrito Capital";
+      u.includes("el junquito") || u.includes("junquito") || u.includes("carrizal") || u.includes("los teques")) return "Miranda"; // Carrizal y Los Teques están en Miranda
   if (u.includes("la guaira") || u.includes("vargas") || u.includes("catia la mar") ||
       u.includes("caraballeda") || u.includes("macuto") || u.includes("naiguata") ||
       u.includes("naiguatá") || u.includes("maiquetia") || u.includes("tanaguarena") ||
       u.includes("playa grande") || u.includes("playa verde") || u.includes("caribe") ||
       u.includes("la guira") || u.includes("lamar")) return "La Guaira";
-  if (u.includes("miranda") || u.includes("los teques") || u.includes("petare") ||
-      u.includes("charallave") || u.includes("guarenas") || u.includes("guatire")) return "Miranda";
+  if (u.includes("miranda") || u.includes("petare") || u.includes("charallave") || u.includes("guarenas") || u.includes("guatire")) return "Miranda";
   if (u.includes("aragua") || u.includes("maracay") || u.includes("cagua")) return "Aragua";
   if (u.includes("carabobo") || u.includes("valencia") || u.includes("guacara")) return "Carabobo";
   if (u.includes("zulia") || u.includes("maracaibo") || u.includes("cabimas")) return "Zulia";
   if (u.includes("lara") || u.includes("barquisimeto") || u.includes("carora")) return "Lara";
-  if (u.includes("bolívar") || u.includes("bolivar") || u.includes("puerto ordaz") ||
-      u.includes("guayana")) return "Bolívar";
+  if (u.includes("bolívar") || u.includes("bolivar") || u.includes("puerto ordaz") || u.includes("guayana")) return "Bolívar";
   if (u.includes("anzoátegui") || u.includes("anzoategui") || u.includes("barcelona") ||
       u.includes("lecheria") || u.includes("puerto la cruz")) return "Anzoátegui";
   if (u.includes("táchira") || u.includes("tachira") || u.includes("san cristóbal")) return "Táchira";
   if (u.includes("mérida") || u.includes("merida")) return "Mérida";
   if (u.includes("monagas") || u.includes("maturin")) return "Monagas";
   if (u.includes("sucre") || u.includes("cumaná")) return "Sucre";
-  if (u.includes("falcón") || u.includes("falcon") || u.includes("coro")) return "Falcón";
+  if (u.includes("falcón") || u.includes("falcon") || u.includes("coro") || u.includes("tucacas")) return "Falcón";
   if (u.includes("portuguesa") || u.includes("guanare")) return "Portuguesa";
   if (u.includes("trujillo") || u.includes("valera")) return "Trujillo";
   if (u.includes("nueva esparta") || u.includes("margarita") || u.includes("porlamar")) return "Nueva Esparta";
-  return "La Guaira"; // Default: mayoría son de La Guaira
+  return "La Guaira"; // Default: la mayoría proviene de la zona del terremoto
 }
 
-function mapPersona(item) {
+function parseMascotasFromHTML(html) {
+  const mascotas = [];
+  
+  // Dividimos la página en bloques utilizando el delimitador de imagen de Livewire
+  const cardBlocks = html.split(/<!--\s*Image\s*Frame\s*-->/i);
+  cardBlocks.shift(); // Eliminar todo el HTML anterior al primer card
+
+  for (const block of cardBlocks) {
+    // 1. Imagen e ID externo (el ID es el nombre del archivo de la imagen)
+    const imgMatch = block.match(/src="(https:\/\/media\.huellascan\.com\/uploads\/earthquake\/([a-f0-9-]+)\.webp)"/);
+    if (!imgMatch) continue;
+    const imgUrl = imgMatch[1];
+    const externalId = imgMatch[2];
+
+    // 2. Nombre de la mascota
+    const nameMatch = block.match(/<h3[^>]*>\s*([\s\S]*?)\s*<\/h3>/);
+    const nombre = nameMatch ? nameMatch[1].replace(/<[^>]+>/g, '').trim() : 'Desconocido';
+
+    // 3. Estado (Perdido, Encontrado, etc.)
+    const statusMatch = block.match(/class="[^"]*text-\[10px\] font-black uppercase[^"]*">\s*(?:🔴|🟢|🔵)?\s*([^<\s]+)\s*<\/span>/);
+    let estatus = 'Perdido';
+    if (statusMatch) {
+      const st = statusMatch[1].trim().toLowerCase();
+      if (st.includes('perdido')) estatus = 'Perdido';
+      else if (st.includes('encontrado')) estatus = 'Encontrado';
+      else if (st.includes('salvo') || st.includes('casa')) estatus = 'A Salvo';
+    }
+
+    // 4. Ubicación
+    const locationMatch = block.match(/📍 Ubicación:[\s\S]*?<span[^>]*>\s*([\s\S]*?)\s*<\/span>/);
+    const ubicacion = locationMatch ? locationMatch[1].trim() : 'No especificado';
+
+    // 5. Señas / Collar
+    const detailsMatch = block.match(/🏷️ Señas \/ Collar:[\s\S]*?<span[^>]*>\s*([\s\S]*?)\s*<\/span>/);
+    const senas = detailsMatch ? detailsMatch[1].trim() : '';
+
+    // 6. Teléfono
+    const phoneMatch = block.match(/href="tel:([^"]*)"/);
+    const telefono = phoneMatch ? phoneMatch[1].trim() : 'N/D';
+
+    mascotas.push({
+      externalId,
+      imgUrl,
+      nombre,
+      estatus,
+      ubicacion,
+      senas,
+      telefono
+    });
+  }
+
+  return mascotas;
+}
+
+function mapMascota(item) {
+  const especie = inferirEspecie(item.nombre, item.senas, item.ubicacion);
+  const colorDetalles = item.senas || "No especificado";
+
   return {
-    nombre_completo: (item.nombre || "Sin nombre").trim().slice(0, 200),
-    cedula: null,
-    edad: item.edad != null ? Math.min(Math.max(0, Number(item.edad)), 120) : 0,
+    nombre: item.nombre.slice(0, 100),
+    especie,
+    raza: null,
+    color_detalles: colorDetalles.slice(0, 255),
     ultimo_visto_estado: inferirEstado(item.ubicacion),
-    ultimo_visto_detalles: (item.ubicacion || "No especificado").trim(),
-    fecha_contacto_perdido: "2026-06-24", // Fecha del terremoto
-    foto_url: item.fotoUrl || null,
-    informante_nombre: "Reporte comunitario",
-    informante_telefono: "N/D",
+    ultimo_visto_detalles: item.ubicacion.slice(0, 255),
+    fecha_contacto_perdido: "2026-06-24", // Fecha del sismo
+    foto_url: item.imgUrl,
+    informante_nombre: "Reporte comunitario (HuellaScan)",
+    informante_telefono: item.telefono.slice(0, 30),
     informante_email: null,
-    estatus: item.estado,
-    fuente: "venezuelareporta",
-    external_id: item.uuid,
-    prioridad: 2,
+    estatus: item.estatus,
+    fuente: "huellascan",
+    external_id: item.externalId,
+    prioridad: 2
   };
 }
 
 // ─── Fetch de una página HTML ─────────────────────────────────────────────────
 async function fetchPage(page) {
-  const url = `${BASE_URL}/buscar?page=${page}`;
+  const url = `${BASE_URL}?page=${page}`;
   const res = await fetch(url, {
     headers: {
       "Accept": "text/html,application/xhtml+xml",
-      "Accept-Language": "es-VE,es;q=0.9",
       "User-Agent": "Mozilla/5.0 (compatible; scraper/1.0; registro comunitario)"
     }
   });
@@ -188,20 +176,20 @@ async function fetchPage(page) {
   const html = await res.text();
 
   // Extraer total de resultados
-  const totalMatch = html.match(/([\d.]+)\s*resultados/);
-  const total = totalMatch ? parseInt(totalMatch[1].replace(".", ""), 10) : null;
+  const totalMatch = html.match(/(\d+)\s*<\/span>\s*<span>resultados<\/span>/i);
+  const total = totalMatch ? parseInt(totalMatch[1], 10) : null;
 
-  const personas = parsePersonasFromHTML(html);
-  return { personas, total };
+  const mascotas = parseMascotasFromHTML(html);
+  return { mascotas, total };
 }
 
-// ─── Insertar lote en Supabase ────────────────────────────────────────────────
+// ─── Upsert en Supabase ───────────────────────────────────────────────────────
 async function upsertBatch(records) {
   const { error } = await supabase
-    .from("personas_desaparecidas")
+    .from("mascotas")
     .upsert(records, { onConflict: "fuente,external_id" });
   if (error) {
-    console.error(`\n  ⚠️  Error en lote: ${error.message}`);
+    console.error(`\n  ⚠️  Error en lote de mascotas: ${error.message}`);
     return false;
   }
   return true;
@@ -209,42 +197,40 @@ async function upsertBatch(records) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log("🔍  Iniciando scraping de venezuelareporta.org...\n");
+  console.log("🔍  Iniciando scraping de huellascan.com...\n");
 
-  // Página 1 para ver el total
   console.log("📡  Consultando página 1...");
-  const { personas: firstPagePersonas, total } = await fetchPage(1);
+  const { mascotas: firstPageMascotas, total } = await fetchPage(1);
 
   if (!total) {
-    console.error("❌ No se pudo determinar el total de registros");
+    console.error("❌ No se pudo determinar el total de registros de mascotas");
     process.exit(1);
   }
 
-  const perPage = firstPagePersonas.length;
+  const perPage = firstPageMascotas.length;
   const totalPages = Math.ceil(total / perPage);
 
   // Limitar páginas si se define MAX_PAGES
   const maxPagesEnv = process.env.MAX_PAGES ? parseInt(process.env.MAX_PAGES, 10) : null;
   const targetPages = maxPagesEnv ? Math.min(totalPages, maxPagesEnv) : totalPages;
 
-  console.log(`📊  Total de personas: ${total.toLocaleString()}`);
-  console.log(`📄  Personas por página: ${perPage}`);
+  console.log(`📊  Total de mascotas reportadas: ${total.toLocaleString()}`);
+  console.log(`📄  Mascotas por página: ${perPage}`);
   console.log(`📄  Total de páginas: ${totalPages}${maxPagesEnv ? ` (Limitando a primeras ${targetPages} páginas)` : ""}\n`);
 
-  let allPersonas = [...firstPagePersonas];
+  let allMascotas = [...firstPageMascotas];
   let errorPages = 0;
 
   // Descargar el resto de páginas
   for (let page = 2; page <= targetPages; page++) {
-    process.stdout.write(`  ⬇️  Descargando página ${page}/${totalPages} (${allPersonas.length.toLocaleString()} personas)...\r`);
+    process.stdout.write(`  ⬇️  Descargando página ${page}/${targetPages} (${allMascotas.length.toLocaleString()} mascotas)...\r`);
     try {
       await sleep(DELAY_MS);
-      const { personas } = await fetchPage(page);
-      if (personas.length === 0) {
-        // Puede que sea la última página vacía
+      const { mascotas } = await fetchPage(page);
+      if (mascotas.length === 0) {
         console.log(`\n  ⚠️  Página ${page} vacía, continuando...`);
       }
-      allPersonas.push(...personas);
+      allMascotas.push(...mascotas);
     } catch (err) {
       console.error(`\n  ❌  Error en página ${page}: ${err.message}`);
       errorPages++;
@@ -255,11 +241,10 @@ async function main() {
     }
   }
 
-  console.log(`\n\n✅  Descarga completada: ${allPersonas.length.toLocaleString()} personas`);
-  console.log("⬆️  Insertando en Supabase...\n");
+  console.log(`\n\n✅  Descarga completada: ${allMascotas.length.toLocaleString()} mascotas`);
+  console.log("⬆️  Insertando/actualizando en Supabase...\n");
 
-  // Mapear y insertar
-  const mapped = allPersonas.map(mapPersona);
+  const mapped = allMascotas.map(mapMascota);
   let successCount = 0;
   let errorCount = 0;
 
@@ -276,10 +261,10 @@ async function main() {
     if (ok) {
       successCount += batch.length;
     } else {
-      // Reintentar de a uno
+      // Reintentar uno por uno en caso de error
       for (const record of batch) {
         const { error } = await supabase
-          .from("personas_desaparecidas")
+          .from("mascotas")
           .upsert([record], { onConflict: "fuente,external_id" });
         if (!error) successCount++;
         else errorCount++;
@@ -290,11 +275,11 @@ async function main() {
   }
 
   console.log("\n\n═══════════════════════════════════════");
-  console.log("🏁  IMPORTACIÓN COMPLETADA — venezuelareporta.org");
+  console.log("🏁  IMPORTACIÓN COMPLETADA — huellascan.com");
   console.log("═══════════════════════════════════════");
-  console.log(`  ✅  Insertados exitosamente: ${successCount.toLocaleString()}`);
+  console.log(`  ✅  Insertados/actualizados: ${successCount.toLocaleString()}`);
   console.log(`  ❌  Errores:                 ${errorCount.toLocaleString()}`);
-  console.log(`  📊  Total procesados:        ${allPersonas.length.toLocaleString()}`);
+  console.log(`  📊  Total procesados:        ${allMascotas.length.toLocaleString()}`);
   console.log(`  ⚠️  Páginas con error:       ${errorPages}`);
   console.log("═══════════════════════════════════════\n");
 }

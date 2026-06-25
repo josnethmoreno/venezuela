@@ -38,6 +38,7 @@ export default function Home() {
   // Estados para Mascotas
   const [mascotas, setMascotas] = useState<Mascota[]>([]);
   const [isPetDialogOpen, setIsPetDialogOpen] = useState(false);
+  const [petFormInitialStatus, setPetFormInitialStatus] = useState<"Perdido" | "Encontrado">("Perdido");
   const [selectedPet, setSelectedPet] = useState<Mascota | null>(null);
   const [isPetDetailOpen, setIsPetDetailOpen] = useState(false);
   const [mascotasQuery, setMascotasQuery] = useState("");
@@ -108,82 +109,180 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Efecto para abrir la ficha de una persona si viene el ID en la URL al cargar
+  // Efecto para abrir la ficha de una persona o mascota si viene el ID en la URL al cargar
   useEffect(() => {
     if (hasCheckedUrlParam) return;
 
     const searchParams = new URLSearchParams(window.location.search);
     const personaId = searchParams.get("persona");
-    if (!personaId) {
+    const mascotaId = searchParams.get("mascota");
+
+    if (!personaId && !mascotaId) {
       setHasCheckedUrlParam(true);
       return;
     }
 
-    // Buscar localmente primero
-    const localFound = desaparecidos.find((p) => p.id.startsWith(personaId) || p.id === personaId);
-    if (localFound) {
-      setSelectedPerson(localFound);
-      setIsDetailOpen(true);
-      setActiveView("personas");
-      setHasCheckedUrlParam(true);
-    } else if (isSupabaseConfigured) {
-      const fetchPersona = async () => {
-        try {
-          let data = null;
-          if (personaId.length === 36) {
-            const { data: resData, error } = await supabase!
-              .from("personas_desaparecidas")
-              .select("*, reportes_informacion(*)")
-              .eq("id", personaId)
-              .single();
-            if (error) throw error;
-            data = resData;
-          } else {
-            const { data: resList, error } = await supabase!
-              .from("personas_desaparecidas")
-              .select("*, reportes_informacion(*)");
-            if (error) throw error;
-            data = resList?.find((p: any) => p.id.startsWith(personaId));
-          }
+    if (personaId) {
+      // Buscar localmente primero
+      const localFound = desaparecidos.find((p) => p.id.startsWith(personaId) || p.id === personaId);
+      if (localFound) {
+        setSelectedPerson(localFound);
+        setIsDetailOpen(true);
+        setActiveView("personas");
+        setHasCheckedUrlParam(true);
+      } else if (isSupabaseConfigured) {
+        const fetchPersona = async () => {
+          try {
+            let data = null;
+            if (personaId.length === 36) {
+              const { data: resData, error } = await supabase!
+                .from("personas_desaparecidas")
+                .select("*, reportes_informacion(*)")
+                .eq("id", personaId)
+                .single();
+              if (error) throw error;
+              data = resData;
+            } else {
+              const { data: resList, error } = await supabase!
+                .from("personas_desaparecidas")
+                .select("*, reportes_informacion(*)");
+              if (error) throw error;
+              data = resList?.find((p: any) => p.id.startsWith(personaId));
+            }
 
-          if (data) {
-            const record: PersonaDesaparecida = {
-              id: data.id,
-              nombreCompleto: data.nombre_completo,
-              cedula: data.cedula,
-              edad: data.edad,
-              ultimoVistoEstado: data.ultimo_visto_estado,
-              ultimoVistoDetalles: data.ultimo_visto_detalles,
-              fechaContactoPerdido: data.fecha_contacto_perdido,
-              fotoUrl: data.foto_url,
-              informanteNombre: data.informante_nombre,
-              informanteTelefono: data.informante_telefono,
-              informanteEmail: data.informante_email,
-              estatus: data.estatus,
-              creadoEn: data.creado_en,
-              reportes: (data.reportes_informacion || []).map((r: any) => ({
-                id: r.id,
-                autorNombre: r.autor_nombre,
-                autorTelefono: r.autor_telefono,
-                mensaje: r.mensaje,
-                fecha: r.fecha
-              })).sort((a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
-            };
-            setSelectedPerson(record);
-            setIsDetailOpen(true);
-            setActiveView("personas");
+            if (data) {
+              const record: PersonaDesaparecida = {
+                id: data.id,
+                nombreCompleto: data.nombre_completo,
+                cedula: data.cedula,
+                edad: data.edad,
+                ultimoVistoEstado: data.ultimo_visto_estado,
+                ultimoVistoDetalles: data.ultimo_visto_detalles,
+                fechaContactoPerdido: data.fecha_contacto_perdido,
+                fotoUrl: data.foto_url,
+                informanteNombre: data.informante_nombre,
+                informanteTelefono: data.informante_telefono,
+                informanteEmail: data.informante_email,
+                estatus: data.estatus,
+                creadoEn: data.creado_en,
+                reportes: (data.reportes_informacion || []).map((r: any) => ({
+                  id: r.id,
+                  autorNombre: r.autor_nombre,
+                  autorTelefono: r.autor_telefono,
+                  mensaje: r.mensaje,
+                  fecha: r.fecha
+                })).sort((a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+              };
+              setSelectedPerson(record);
+              setIsDetailOpen(true);
+              setActiveView("personas");
+            }
+          } catch (err) {
+            console.error("Error al obtener persona del link:", err);
+          } finally {
+            setHasCheckedUrlParam(true);
           }
-        } catch (err) {
-          console.error("Error al obtener persona del link:", err);
-        } finally {
-          setHasCheckedUrlParam(true);
-        }
-      };
-      fetchPersona();
-    } else {
-      setHasCheckedUrlParam(true);
+        };
+        fetchPersona();
+      } else {
+        setHasCheckedUrlParam(true);
+      }
+    } else if (mascotaId) {
+      // Buscar localmente primero
+      const localFound = mascotas.find(
+        (m) =>
+          m.id.startsWith(mascotaId) ||
+          m.id === mascotaId ||
+          (m.externalId && (m.externalId.startsWith(mascotaId) || m.externalId === mascotaId))
+      );
+      if (localFound) {
+        setSelectedPet(localFound);
+        setIsPetDetailOpen(true);
+        setActiveView("mascotas");
+        setHasCheckedUrlParam(true);
+      } else if (isSupabaseConfigured) {
+        const fetchMascota = async () => {
+          try {
+            let data = null;
+            if (mascotaId.length === 36) {
+              // Buscar primero por ID
+              const { data: resData, error } = await supabase!
+                .from("mascotas")
+                .select("*")
+                .eq("id", mascotaId)
+                .maybeSingle();
+              
+              if (resData) {
+                data = resData;
+              } else {
+                // Intentar buscar por external_id exacto
+                const { data: resDataExt, error: extError } = await supabase!
+                  .from("mascotas")
+                  .select("*")
+                  .eq("external_id", mascotaId)
+                  .maybeSingle();
+                data = resDataExt;
+              }
+            } else {
+              // Si no es un UUID completo, listar ID y external_id de mascotas para buscar la coincidencia
+              const { data: resList, error } = await supabase!
+                .from("mascotas")
+                .select("id, external_id");
+              if (error) throw error;
+              
+              const matched = resList?.find(
+                (m: any) =>
+                  m.id.startsWith(mascotaId) ||
+                  (m.external_id && m.external_id.startsWith(mascotaId))
+              );
+              
+              if (matched) {
+                const { data: fullRecord, error: fullError } = await supabase!
+                  .from("mascotas")
+                  .select("*")
+                  .eq("id", matched.id)
+                  .single();
+                if (fullError) throw fullError;
+                data = fullRecord;
+              }
+            }
+
+            if (data) {
+              const record: Mascota = {
+                id: data.id,
+                nombre: data.nombre,
+                especie: data.especie,
+                raza: data.raza,
+                colorDetalles: data.color_detalles,
+                ultimoVistoEstado: data.ultimo_visto_estado,
+                ultimoVistoDetalles: data.ultimo_visto_detalles,
+                fechaContactoPerdido: data.fecha_contacto_perdido,
+                fotoUrl: data.foto_url,
+                informanteNombre: data.informante_nombre,
+                informanteTelefono: data.informante_telefono,
+                informanteEmail: data.informante_email,
+                estatus: data.estatus,
+                creadoEn: data.creado_en,
+                fuente: data.fuente,
+                externalId: data.external_id,
+                prioridad: data.prioridad
+              };
+              setSelectedPet(record);
+              setIsPetDetailOpen(true);
+              setActiveView("mascotas");
+            }
+          } catch (err) {
+            console.error("Error al obtener mascota del link:", err);
+          } finally {
+            setHasCheckedUrlParam(true);
+          }
+        };
+        fetchMascota();
+      } else {
+        setHasCheckedUrlParam(true);
+      }
     }
-  }, [desaparecidos, isSupabaseConfigured, hasCheckedUrlParam]);
+  }, [desaparecidos, mascotas, isSupabaseConfigured, hasCheckedUrlParam]);
 
   // Efecto para sincronizar el estado del modal con los parámetros de búsqueda de la URL
   useEffect(() => {
@@ -199,6 +298,21 @@ export default function Home() {
       }
     }
   }, [isDetailOpen, selectedPerson]);
+
+  // Efecto para sincronizar el estado del modal con los parámetros de búsqueda de la URL para mascotas
+  useEffect(() => {
+    if (isPetDetailOpen && selectedPet) {
+      const shortId = selectedPet.id.length === 36 ? selectedPet.id.substring(0, 8) : selectedPet.id;
+      const newUrl = `${window.location.origin}${window.location.pathname}?mascota=${shortId}`;
+      window.history.replaceState({ path: newUrl }, "", newUrl);
+    } else if (!isPetDetailOpen) {
+      const searchParams = new URLSearchParams(window.location.search);
+      if (searchParams.has("mascota")) {
+        const newUrl = `${window.location.origin}${window.location.pathname}`;
+        window.history.replaceState({ path: newUrl }, "", newUrl);
+      }
+    }
+  }, [isPetDetailOpen, selectedPet]);
 
   // Efecto para cargar datos en tiempo real si Supabase está configurado
   useEffect(() => {
@@ -256,6 +370,7 @@ export default function Home() {
         let query = supabase!
           .from("personas_desaparecidas")
           .select("*, reportes_informacion(*)", { count: "exact" })
+          .order("prioridad", { ascending: true })
           .order("creado_en", { ascending: false })
           .range(from, to);
 
@@ -334,6 +449,7 @@ export default function Home() {
         let query = supabase!
           .from("mascotas")
           .select("*", { count: "exact" })
+          .order("prioridad", { ascending: true })
           .order("creado_en", { ascending: false })
           .range(from, to);
 
@@ -368,7 +484,10 @@ export default function Home() {
             informanteTelefono: m.informante_telefono,
             informanteEmail: m.informante_email,
             estatus: m.estatus,
-            creadoEn: m.creado_en
+            creadoEn: m.creado_en,
+            fuente: m.fuente,
+            externalId: m.external_id,
+            prioridad: m.prioridad
           }));
           setMascotas(mapped);
           setTotalMascotasFiltered(count ?? 0);
@@ -679,7 +798,10 @@ export default function Home() {
             informanteTelefono: data.informante_telefono,
             informanteEmail: data.informante_email,
             estatus: data.estatus,
-            creadoEn: data.creado_en
+            creadoEn: data.creado_en,
+            fuente: data.fuente,
+            externalId: data.external_id,
+            prioridad: data.prioridad
           };
           setMascotas((prev) => [record, ...prev]);
           setTotalMascotas((prev) => prev + 1);
@@ -1295,14 +1417,29 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Lado derecho: Botón grande */}
-                <div className="lg:col-span-4 flex flex-col gap-3 w-full lg:items-end justify-end h-full">
+                {/* Lado derecho: Botones de reporte */}
+                <div className="lg:col-span-4 flex flex-col sm:flex-row lg:flex-col gap-3 w-full lg:items-end justify-end h-full">
+                  <button
+                    onClick={() => {
+                      setPetFormInitialStatus("Perdido");
+                      setIsPetDialogOpen(true);
+                    }}
+                    className="w-full sm:w-auto lg:w-full h-14 px-5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm uppercase tracking-wider shadow-md hover:shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                  >
+                    <span>🔍</span> Busco Mascota
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setPetFormInitialStatus("Encontrado");
+                      setIsPetDialogOpen(true);
+                    }}
+                    className="w-full sm:w-auto lg:w-full h-14 px-5 rounded-2xl bg-white dark:bg-neutral-900 border border-emerald-600 dark:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 font-black text-sm uppercase tracking-wider shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                  >
+                    <span>🏡</span> Encontré Mascota
+                  </button>
+
                   <Dialog open={isPetDialogOpen} onOpenChange={setIsPetDialogOpen}>
-                    <DialogTrigger render={
-                      <button className="w-full h-16 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-base md:text-lg shadow-md hover:shadow-emerald-650/20 transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider">
-                        Reportar Mascota
-                      </button>
-                    } />
                     <DialogContent className="sm:max-w-lg w-[95%] bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
                       <DialogHeader>
                         <DialogTitle className="text-lg font-bold font-heading text-neutral-900 dark:text-white">
@@ -1315,6 +1452,7 @@ export default function Home() {
                       <RegisterPetForm
                         onSuccess={handleRegisterPetSuccess}
                         onClose={() => setIsPetDialogOpen(false)}
+                        initialStatus={petFormInitialStatus}
                       />
                     </DialogContent>
                   </Dialog>

@@ -79,7 +79,6 @@ function mapPersona(item) {
   const ubicacionRaw = (item.ubicacion || "").trim();
 
   return {
-    // Usamos el id original como referencia en la descripcion para evitar duplicados
     nombre_completo: (item.nombre || "Sin nombre").trim().slice(0, 200),
     cedula: null,
     edad: item.edad != null ? Math.min(Math.max(0, Number(item.edad)), 120) : 0,
@@ -91,8 +90,9 @@ function mapPersona(item) {
     informante_telefono: extraerTelefono(item.contacto),
     informante_email: extraerEmail(item.contacto),
     estatus,
-    // Guardamos el ID de origen en descripcion para no duplicar en futuras importaciones
-    // (Supabase no tiene campo para esto, así que lo almacenamos de forma legible)
+    fuente: "desaparecidos",
+    external_id: String(item.id || item._id || ''),
+    prioridad: 2,
   };
 }
 
@@ -143,10 +143,10 @@ async function fetchPage(page) {
   return res.json();
 }
 
-async function insertBatch(records) {
+async function upsertBatch(records) {
   const { error } = await supabase
     .from("personas_desaparecidas")
-    .insert(records);
+    .upsert(records, { onConflict: "fuente,external_id" });
   if (error) {
     console.error("  ⚠️  Error al insertar lote:", error.message);
     return false;
@@ -163,16 +163,20 @@ async function main() {
   const first = await fetchPage(1);
   const { total, totalPages } = first;
 
+  // Limitar páginas si se define MAX_PAGES
+  const maxPagesEnv = process.env.MAX_PAGES ? parseInt(process.env.MAX_PAGES, 10) : null;
+  const targetPages = maxPagesEnv ? Math.min(totalPages, maxPagesEnv) : totalPages;
+
   console.log(`📊  Total de personas en la API: ${total.toLocaleString()}`);
-  console.log(`📄  Total de páginas: ${totalPages} (${PAGE_SIZE} por página)\n`);
+  console.log(`📄  Total de páginas: ${totalPages} (${PAGE_SIZE} por página)${maxPagesEnv ? ` (Limitando a primeras ${targetPages} páginas)` : ""}\n`);
 
   let allPersons = [...first.items];
   let successCount = 0;
   let errorCount = 0;
 
   // Descargar páginas restantes
-  for (let page = 2; page <= totalPages; page++) {
-    process.stdout.write(`  ⬇️  Descargando página ${page}/${totalPages}...\r`);
+  for (let page = 2; page <= targetPages; page++) {
+    process.stdout.write(`  ⬇️  Descargando página ${page}/${targetPages}...\r`);
     try {
       await sleep(DELAY_MS);
       const data = await fetchPage(page);
@@ -198,16 +202,15 @@ async function main() {
       `  🔄  Lote ${batchNum}/${totalBatches} (${i + 1}–${Math.min(i + BATCH_SIZE, mapped.length)})...\r`
     );
 
-    const ok = await insertBatch(batch);
+    const ok = await upsertBatch(batch);
     if (ok) {
       successCount += batch.length;
     } else {
-      errorCount += batch.length;
       // Reintentar de a uno si el lote falló
       for (const record of batch) {
         const { error } = await supabase
           .from("personas_desaparecidas")
-          .insert([record]);
+          .upsert([record], { onConflict: "fuente,external_id" });
         if (!error) successCount++;
         else errorCount++;
       }

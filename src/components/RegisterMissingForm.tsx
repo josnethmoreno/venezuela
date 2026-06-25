@@ -86,6 +86,7 @@ interface RegisterMissingFormProps {
 export function RegisterMissingForm({ onSuccess, onClose }: RegisterMissingFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const {
     register,
@@ -106,6 +107,7 @@ export function RegisterMissingForm({ onSuccess, onClose }: RegisterMissingFormP
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setPhotoError(null);
       try {
         const optimizedWebP = await compressImageToWebP(file);
         setPhotoPreview(optimizedWebP);
@@ -121,6 +123,10 @@ export function RegisterMissingForm({ onSuccess, onClose }: RegisterMissingFormP
   };
 
   const onSubmit = async (values: FormValues) => {
+    if (!photoPreview) {
+      setPhotoError("La foto de la persona es obligatoria");
+      return;
+    }
     setIsSubmitting(true);
     // Simula una pequeña demora del servidor
     await new Promise((resolve) => setTimeout(resolve, 800));
@@ -239,7 +245,7 @@ export function RegisterMissingForm({ onSuccess, onClose }: RegisterMissingFormP
 
       {/* Subida de foto */}
       <div className="space-y-1">
-        <Label className="text-xs font-semibold">Cargar Foto (Opcional)</Label>
+        <Label className="text-xs font-semibold">Cargar Foto <span className="text-red-500">*</span></Label>
         <div className="flex items-center gap-3">
           <div className="relative h-[40px] flex-grow">
             <input
@@ -259,6 +265,9 @@ export function RegisterMissingForm({ onSuccess, onClose }: RegisterMissingFormP
             </div>
           )}
         </div>
+        {photoError && (
+          <p className="text-[10px] text-red-500 font-semibold">{photoError}</p>
+        )}
       </div>
 
       {/* Detalles del último avistamiento */}

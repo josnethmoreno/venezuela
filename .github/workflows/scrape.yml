@@ -1,0 +1,40 @@
+name: Scrape & Sync Data
+
+on:
+  schedule:
+    # Se ejecuta cada 5 minutos de forma automatizada (repo público = minutos ilimitados)
+    - cron: '*/5 * * * *'
+  # Permite ejecutarlo manualmente desde la pestaña de Actions de GitHub
+  workflow_dispatch:
+
+jobs:
+  sync:
+    name: Sync Scrapers to Supabase
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Scrape & Sync
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          MAX_PAGES: 3 # Escanea solo las primeras 3 páginas para ser eficiente y rápido en segundo plano
+        run: |
+          echo "🔄 Ejecutando scrape-venezuelareporta.mjs..."
+          node scripts/scrape-venezuelareporta.mjs
+          echo "🔄 Ejecutando scrape-desaparecidos.mjs..."
+          node scripts/scrape-desaparecidos.mjs
+          echo "🔄 Ejecutando scrape-venezuelatebusca.mjs..."
+          node scripts/scrape-venezuelatebusca.mjs
+          echo "🔄 Ejecutando scrape-huellascan.mjs..."
+          node scripts/scrape-huellascan.mjs

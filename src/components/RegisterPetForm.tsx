@@ -80,11 +80,13 @@ const compressImageToWebP = (file: File, maxDimension: number = 800, quality: nu
 interface RegisterPetFormProps {
   onSuccess: (newPet: Omit<Mascota, "id" | "creadoEn">) => void;
   onClose: () => void;
+  initialStatus?: "Perdido" | "Encontrado";
 }
 
-export function RegisterPetForm({ onSuccess, onClose }: RegisterPetFormProps) {
+export function RegisterPetForm({ onSuccess, onClose, initialStatus }: RegisterPetFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const {
     register,
@@ -105,7 +107,7 @@ export function RegisterPetForm({ onSuccess, onClose }: RegisterPetFormProps) {
       informanteNombre: "",
       informanteTelefono: "",
       informanteEmail: "",
-      estatus: "Perdido",
+      estatus: initialStatus || "Perdido",
     }
   });
 
@@ -118,9 +120,16 @@ export function RegisterPetForm({ onSuccess, onClose }: RegisterPetFormProps) {
     register("estatus");
   }, [register]);
 
+  useEffect(() => {
+    if (initialStatus) {
+      setValue("estatus", initialStatus);
+    }
+  }, [initialStatus, setValue]);
+
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setPhotoError(null);
       try {
         const optimizedWebP = await compressImageToWebP(file);
         setPhotoPreview(optimizedWebP);
@@ -136,6 +145,10 @@ export function RegisterPetForm({ onSuccess, onClose }: RegisterPetFormProps) {
   };
 
   const onSubmit = async (values: FormValues) => {
+    if (!photoPreview) {
+      setPhotoError("La foto de la mascota es obligatoria");
+      return;
+    }
     setIsSubmitting(true);
     await new Promise((resolve) => setTimeout(resolve, 800));
 
@@ -299,7 +312,7 @@ export function RegisterPetForm({ onSuccess, onClose }: RegisterPetFormProps) {
 
       {/* Subida de foto */}
       <div className="space-y-1">
-        <Label className="text-xs font-semibold">Cargar Foto (Opcional)</Label>
+        <Label className="text-xs font-semibold">Cargar Foto <span className="text-red-500">*</span></Label>
         <div className="flex items-center gap-3">
           <div className="relative h-[40px] flex-grow">
             <input
@@ -319,6 +332,9 @@ export function RegisterPetForm({ onSuccess, onClose }: RegisterPetFormProps) {
             </div>
           )}
         </div>
+        {photoError && (
+          <p className="text-[10px] text-red-500 font-semibold">{photoError}</p>
+        )}
       </div>
 
       {/* Detalles del último avistamiento */}

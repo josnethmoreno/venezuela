@@ -97,3 +97,55 @@ values
 ('Cuerpo de Bomberos de Maracaibo - Sede Santa Rita', 'Zulia', 'Maracaibo - Av. 8 (Santa Rita), Sede Central.', 'Bomberos de Maracaibo (+58 261-7221133)', array['Agua Potable', 'Alimentos no perecederos', 'Medicinas y Primeros Auxilios', 'Ropa y Cobijas', 'Artículos de higiene personal'], true),
 ('Catedral de Barquisimeto', 'Lara', 'Av. Venezuela con Calle 30.', 'Cáritas Barquisimeto', array['Agua Potable', 'Alimentos no perecederos', 'Medicinas y Primeros Auxilios', 'Ropa y Cobijas', 'Artículos de higiene personal'], false),
 ('Cuerpo de Bomberos de Mérida - Estación Central', 'Mérida', 'Mérida - Av. Humberto Tejera, sector Glorias Patrias.', 'Bomberos Mérida (+58 274-2633333)', array['Agua Potable', 'Alimentos no perecederos', 'Medicinas y Primeros Auxilios', 'Ropa y Cobijas', 'Artículos de higiene personal'], true);
+
+-- 4. Tabla de Mascotas
+create table if not exists public.mascotas (
+    id uuid default gen_random_uuid() primary key,
+    nombre text,
+    especie text not null check (especie in ('Perro', 'Gato', 'Otro')),
+    raza text,
+    color_detalles text not null,
+    ultimo_visto_estado text not null,
+    ultimo_visto_detalles text not null,
+    fecha_contacto_perdido date not null,
+    foto_url text,
+    informante_nombre text not null,
+    informante_telefono text not null,
+    informante_email text,
+    estatus text default 'Perdido' check (estatus in ('Perdido', 'Encontrado', 'A Salvo')),
+    creado_en timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Habilitar RLS
+alter table public.mascotas enable row level security;
+
+-- Políticas de Seguridad para Mascotas
+create policy "Permitir lectura pública de mascotas" 
+on public.mascotas for select using (true);
+
+create policy "Permitir inserción pública de mascotas" 
+on public.mascotas for insert with check (true);
+
+create policy "Permitir actualización pública de mascotas" 
+on public.mascotas for update using (true);
+
+
+-- 5. Tabla de Reportes de Centros de Acopio
+create table if not exists public.reportes_centros_acopio (
+    id uuid default gen_random_uuid() primary key,
+    centro_id uuid references public.centros_acopio(id) on delete cascade not null,
+    razon text not null check (razon in ('inactivo', 'lleno', 'informacion_incorrecta', 'spam', 'otro')),
+    detalles text not null,
+    creado_en timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Habilitar RLS
+alter table public.reportes_centros_acopio enable row level security;
+
+-- Políticas de Seguridad para Reportes de Centros de Acopio
+create policy "Permitir lectura pública de reportes de centros" 
+on public.reportes_centros_acopio for select using (true);
+
+create policy "Permitir inserción pública de reportes de centros" 
+on public.reportes_centros_acopio for insert with check (true);
+

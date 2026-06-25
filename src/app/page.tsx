@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
-import { MapPin, Users, CheckCircle2, ShieldAlert, Phone, Search, ChevronRight } from "lucide-react";
+import { MapPin, Users, CheckCircle2, ShieldAlert, Phone, Search, ChevronRight, PawPrint, Flag } from "lucide-react";
 import { MapVenezuela } from "@/components/MapVenezuela";
 import { MOCK_CENTROS, CentroAcopio } from "@/data/mockCentros";
 import {
@@ -16,8 +16,12 @@ import {
 import { RegisterMissingForm } from "@/components/RegisterMissingForm";
 import { RegisterCentroForm } from "@/components/RegisterCentroForm";
 import { PersonDetailModal } from "@/components/PersonDetailModal";
+import { RegisterPetForm } from "@/components/RegisterPetForm";
+import { PetDetailModal } from "@/components/PetDetailModal";
+import { ReportCentroForm } from "@/components/ReportCentroForm";
 import { Footer } from "@/components/Footer";
 import { MOCK_DESAPARECIDOS, PersonaDesaparecida } from "@/data/mockDesaparecidos";
+import { Mascota, MOCK_MASCOTAS } from "@/data/mockMascotas";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 const VENEZUELA_STATES = [
@@ -28,8 +32,25 @@ const VENEZUELA_STATES = [
 ];
 
 export default function Home() {
-  const [activeView, setActiveView] = useState<'acopio' | 'personas'>('personas');
+  const [activeView, setActiveView] = useState<'acopio' | 'personas' | 'mascotas'>('personas');
   const [scrolledPastNav, setScrolledPastNav] = useState(false);
+
+  // Estados para Mascotas
+  const [mascotas, setMascotas] = useState<Mascota[]>([]);
+  const [isPetDialogOpen, setIsPetDialogOpen] = useState(false);
+  const [selectedPet, setSelectedPet] = useState<Mascota | null>(null);
+  const [isPetDetailOpen, setIsPetDetailOpen] = useState(false);
+  const [mascotasQuery, setMascotasQuery] = useState("");
+  const [mascotasState, setMascotasState] = useState("");
+  const [mascotasEspecie, setMascotasEspecie] = useState("Todos");
+  const [mascotasStatus, setMascotasStatus] = useState("Todos");
+  const [mascotasPage, setMascotasPage] = useState(1);
+  const [totalMascotas, setTotalMascotas] = useState(0);
+  const [totalMascotasFiltered, setTotalMascotasFiltered] = useState(0);
+
+  // Reportes de Centros de Acopio
+  const [reportingCentro, setReportingCentro] = useState<{ id: string; nombre: string } | null>(null);
+  const [isReportCentroOpen, setIsReportCentroOpen] = useState(false);
   
   // Estados para Centros de Acopio
   const [centrosAcopio, setCentrosAcopio] = useState<CentroAcopio[]>(
@@ -205,14 +226,16 @@ export default function Home() {
         }
 
         // Obtener conteos reales usando count (sin límite de 1000 filas)
-        const [{ count: total }, { count: sinContacto }, { count: aSalvo }] = await Promise.all([
+        const [{ count: total }, { count: sinContacto }, { count: aSalvo }, { count: totalM }] = await Promise.all([
           supabase!.from("personas_desaparecidas").select("*", { count: "exact", head: true }),
           supabase!.from("personas_desaparecidas").select("*", { count: "exact", head: true }).eq("estatus", "Desaparecido"),
           supabase!.from("personas_desaparecidas").select("*", { count: "exact", head: true }).eq("estatus", "Localizado"),
+          supabase!.from("mascotas").select("*", { count: "exact", head: true }),
         ]);
         setTotalReportados(total ?? 0);
         setTotalSinContacto(sinContacto ?? 0);
         setTotalASalvo(aSalvo ?? 0);
+        setTotalMascotas(totalM ?? 0);
       } catch (err) {
         console.error("Error cargando datos de Supabase:", err);
       }
@@ -282,6 +305,82 @@ export default function Home() {
 
     loadPersonasPage();
   }, [currentPage, itemsPerPage, desaparecidosQuery, desaparecidosState, desaparecidosStatus]);
+
+  // Cargar página actual de mascotas con filtros aplicados (server-side)
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      // Filtrado en memoria para modo DEMO
+      const filtered = MOCK_MASCOTAS.filter((m) => {
+        const matchesSearch = mascotasQuery.trim()
+          ? m.colorDetalles.toLowerCase().includes(mascotasQuery.toLowerCase()) ||
+            (m.nombre && m.nombre.toLowerCase().includes(mascotasQuery.toLowerCase())) ||
+            m.ultimoVistoDetalles.toLowerCase().includes(mascotasQuery.toLowerCase())
+          : true;
+        const matchesState = mascotasState ? m.ultimoVistoEstado === mascotasState : true;
+        const matchesStatus = mascotasStatus === "Todos" ? true : m.estatus === mascotasStatus;
+        const matchesEspecie = mascotasEspecie === "Todos" ? true : m.especie === mascotasEspecie;
+        return matchesSearch && matchesState && matchesStatus && matchesEspecie;
+      });
+      setMascotas(filtered.slice((mascotasPage - 1) * itemsPerPage, mascotasPage * itemsPerPage));
+      setTotalMascotasFiltered(filtered.length);
+      return;
+    }
+
+    async function loadMascotasPage() {
+      try {
+        const from = (mascotasPage - 1) * itemsPerPage;
+        const to = from + itemsPerPage - 1;
+
+        let query = supabase!
+          .from("mascotas")
+          .select("*", { count: "exact" })
+          .order("creado_en", { ascending: false })
+          .range(from, to);
+
+        if (mascotasStatus !== "Todos") {
+          query = query.eq("estatus", mascotasStatus);
+        }
+        if (mascotasState) {
+          query = query.eq("ultimo_visto_estado", mascotasState);
+        }
+        if (mascotasEspecie !== "Todos") {
+          query = query.eq("especie", mascotasEspecie);
+        }
+        if (mascotasQuery.trim()) {
+          query = query.or(`nombre.ilike.%${mascotasQuery.trim()}%,color_detalles.ilike.%${mascotasQuery.trim()}%,ultimo_visto_detalles.ilike.%${mascotasQuery.trim()}%`);
+        }
+
+        const { data: mascotasData, error: mascotasError, count } = await query;
+
+        if (mascotasError) throw mascotasError;
+        if (mascotasData) {
+          const mapped: Mascota[] = mascotasData.map((m: any) => ({
+            id: m.id,
+            nombre: m.nombre,
+            especie: m.especie,
+            raza: m.raza,
+            colorDetalles: m.color_detalles,
+            ultimoVistoEstado: m.ultimo_visto_estado,
+            ultimoVistoDetalles: m.ultimo_visto_detalles,
+            fechaContactoPerdido: m.fecha_contacto_perdido,
+            fotoUrl: m.foto_url,
+            informanteNombre: m.informante_nombre,
+            informanteTelefono: m.informante_telefono,
+            informanteEmail: m.informante_email,
+            estatus: m.estatus,
+            creadoEn: m.creado_en
+          }));
+          setMascotas(mapped);
+          setTotalMascotasFiltered(count ?? 0);
+        }
+      } catch (err) {
+        console.error("Error cargando mascotas:", err);
+      }
+    }
+
+    loadMascotasPage();
+  }, [mascotasPage, itemsPerPage, mascotasQuery, mascotasState, mascotasStatus, mascotasEspecie]);
+
 
   // Filtrar centros de acopio
   const filteredCentros = centrosAcopio.filter((centro) => {
@@ -542,6 +641,112 @@ export default function Home() {
     }
   };
 
+  const handleRegisterPetSuccess = async (newPet: Omit<Mascota, "id" | "creadoEn">) => {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase!
+          .from("mascotas")
+          .insert([{
+            nombre: newPet.nombre,
+            especie: newPet.especie,
+            raza: newPet.raza,
+            color_detalles: newPet.colorDetalles,
+            ultimo_visto_estado: newPet.ultimoVistoEstado,
+            ultimo_visto_detalles: newPet.ultimoVistoDetalles,
+            fecha_contacto_perdido: newPet.fechaContactoPerdido,
+            foto_url: newPet.fotoUrl,
+            informante_nombre: newPet.informanteNombre,
+            informante_telefono: newPet.informanteTelefono,
+            informante_email: newPet.informanteEmail,
+            estatus: newPet.estatus
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+        if (data) {
+          const record: Mascota = {
+            id: data.id,
+            nombre: data.nombre,
+            especie: data.especie,
+            raza: data.raza,
+            colorDetalles: data.color_detalles,
+            ultimoVistoEstado: data.ultimo_visto_estado,
+            ultimoVistoDetalles: data.ultimo_visto_detalles,
+            fechaContactoPerdido: data.fecha_contacto_perdido,
+            fotoUrl: data.foto_url,
+            informanteNombre: data.informante_nombre,
+            informanteTelefono: data.informante_telefono,
+            informanteEmail: data.informante_email,
+            estatus: data.estatus,
+            creadoEn: data.creado_en
+          };
+          setMascotas((prev) => [record, ...prev]);
+          setTotalMascotas((prev) => prev + 1);
+        }
+      } catch (err) {
+        console.error("Error insertando mascota en Supabase:", err);
+      }
+    } else {
+      const record: Mascota = {
+        ...newPet,
+        id: `m-${Date.now()}`,
+        creadoEn: new Date().toISOString()
+      };
+      setMascotas((prev) => [record, ...prev]);
+      setTotalMascotas((prev) => prev + 1);
+    }
+  };
+
+  const handleMarkPetAsFound = async (id: string, newStatus: "A Salvo" | "Encontrado") => {
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase!
+          .from("mascotas")
+          .update({ estatus: newStatus })
+          .eq("id", id);
+        
+        if (error) throw error;
+      } catch (err) {
+        console.error("Error al actualizar estatus de mascota en Supabase:", err);
+      }
+    }
+
+    setMascotas((prev) =>
+      prev.map((m) => {
+        if (m.id === id) {
+          const updated = { ...m, estatus: newStatus };
+          if (selectedPet && selectedPet.id === id) {
+            setSelectedPet(updated);
+          }
+          return updated;
+        }
+        return m;
+      })
+    );
+  };
+
+  const handleReportCentroSuccess = async (report: { razon: string; detalles: string }) => {
+    if (!reportingCentro) return;
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase!
+          .from("reportes_centros_acopio")
+          .insert([{
+            centro_id: reportingCentro.id,
+            razon: report.razon,
+            detalles: report.detalles
+          }]);
+        if (error) throw error;
+        alert("¡Reporte enviado con éxito! Un moderador verificará la información del centro.");
+      } catch (err) {
+        console.error("Error al enviar reporte de centro en Supabase:", err);
+      }
+    } else {
+      alert("¡Reporte simulado enviado con éxito! (Modo Demo)");
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 font-sans transition-colors duration-300">
       <Header
@@ -553,7 +758,7 @@ export default function Home() {
       <main className="flex-grow max-w-7xl w-full mx-auto px-4 py-8 flex flex-col gap-8">
         
         {/* Botones de navegación (Antes del Hero) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl w-full mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl w-full mx-auto">
           
           {/* Primer botón (Secondary) - Centros de Acopio */}
           <button
@@ -607,6 +812,34 @@ export default function Home() {
               </p>
             </div>
             {activeView === 'personas' && (
+              <span className="absolute top-4 right-4 flex h-2 w-2 rounded-full bg-white animate-ping" />
+            )}
+          </button>
+
+          {/* Tercer botón (Emerald) - Mascotas */}
+          <button
+            onClick={() => setActiveView('mascotas')}
+            className={`group relative flex items-start gap-4 p-6 rounded-2xl border border-emerald-500 text-left transition-all duration-300 cursor-pointer bg-emerald-600 text-white shadow-md ${
+              activeView === 'mascotas'
+                ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-neutral-950 dark:ring-offset-neutral-900 shadow-[0_0_25px_rgba(16,185,129,0.25)] scale-[1.02]'
+                : 'hover:border-emerald-400 hover:scale-[1.01]'
+            }`}
+          >
+            <div className="p-3 rounded-xl bg-white text-emerald-600 transition-colors">
+              <PawPrint className="h-6 w-6" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="block text-[10px] font-bold text-emerald-200 uppercase tracking-wider">
+                Apoyo a Animales
+              </span>
+              <h3 className="text-lg font-bold font-heading text-white mt-1">
+                Mascotas
+              </h3>
+              <p className="text-emerald-100 text-xs md:text-sm mt-1.5 leading-relaxed">
+                Registra y busca mascotas perdidas o encontradas
+              </p>
+            </div>
+            {activeView === 'mascotas' && (
               <span className="absolute top-4 right-4 flex h-2 w-2 rounded-full bg-white animate-ping" />
             )}
           </button>
@@ -729,20 +962,32 @@ export default function Home() {
                       </div>
 
                       {/* Insumos solicitados */}
-                      <div className="space-y-1.5 pt-3 border-t border-neutral-100 dark:border-neutral-800/50">
-                        <span className="block text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
-                          Necesidades Urgentes
-                        </span>
-                        <div className="flex flex-wrap gap-1">
-                          {centro.necesidades.map((necesidad, idx) => (
-                            <span
-                              key={idx}
-                              className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/20"
-                            >
-                              {necesidad}
-                            </span>
-                          ))}
+                      <div className="space-y-1.5 pt-3 border-t border-neutral-100 dark:border-neutral-800/50 flex flex-col sm:flex-row justify-between sm:items-end gap-3">
+                        <div className="space-y-1.5 flex-1">
+                          <span className="block text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
+                            Necesidades Urgentes
+                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {centro.necesidades.map((necesidad, idx) => (
+                              <span
+                                key={idx}
+                                className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/20"
+                              >
+                                {necesidad}
+                              </span>
+                            ))}
+                          </div>
                         </div>
+                        <button
+                          onClick={() => {
+                            setReportingCentro({ id: centro.id, nombre: centro.nombre });
+                            setIsReportCentroOpen(true);
+                          }}
+                          className="flex items-center gap-1 text-[10px] font-bold text-red-500 hover:text-red-700 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 px-2.5 py-1 rounded-lg shrink-0 cursor-pointer self-start sm:self-auto transition-colors"
+                        >
+                          <Flag className="h-3 w-3" />
+                          Reportar Problema
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -755,7 +1000,7 @@ export default function Home() {
                 </div>
               )}
             </div>
-          ) : (
+          ) : activeView === 'personas' ? (
             <div className="space-y-6">
               {/* Encabezado Personas Desaparecidas con Estadísticas */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start border-b border-neutral-200 dark:border-neutral-800 pb-6">
@@ -964,7 +1209,7 @@ export default function Home() {
 
                             {/* Botón CTA para ver la información de la persona */}
                             <button
-                              className="w-full py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/50 text-neutral-800 dark:text-neutral-300 text-xs font-bold hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all cursor-pointer text-center flex items-center justify-center gap-1.5"
+                              className="w-full py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-350 dark:hover:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/50 text-neutral-800 dark:text-neutral-300 text-xs font-bold hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all cursor-pointer text-center flex items-center justify-center gap-1.5"
                             >
                               <span>Ver Información Completa</span>
                               <ChevronRight className="h-3.5 w-3.5 text-neutral-400 group-hover/card:translate-x-0.5 transition-transform" />
@@ -1012,6 +1257,259 @@ export default function Home() {
                 </div>
               )}
             </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Encabezado Mascotas con Estadísticas */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start border-b border-neutral-200 dark:border-neutral-800 pb-6">
+                {/* Lado izquierdo: Título y Estadísticas */}
+                <div className="lg:col-span-8 space-y-6">
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold tracking-wider text-emerald-600 dark:text-emerald-400 uppercase px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-500/20">
+                      Apoyo Animal
+                    </span>
+                    <h2 className="text-3xl md:text-5xl font-heading font-black tracking-tight text-neutral-900 dark:text-white leading-none font-sans">
+                      Búsqueda de <span className="text-emerald-600 dark:text-emerald-400">Mascotas Perdidas</span>
+                    </h2>
+                    <p className="text-neutral-600 dark:text-neutral-400 text-sm md:text-base leading-relaxed mt-1">
+                      Directorio solidario para reportar y localizar mascotas perdidas o encontradas bajo resguardo tras el terremoto.
+                    </p>
+                  </div>
+
+                  {/* Tarjetas de estadísticas */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
+                    <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-4 rounded-xl flex flex-col justify-center text-center sm:text-left shadow-xs">
+                      <span className="text-3xl font-black text-neutral-900 dark:text-white leading-none">{totalMascotas.toLocaleString()}</span>
+                      <span className="text-[10px] font-bold text-neutral-450 dark:text-neutral-500 uppercase tracking-wider mt-2">Mascotas Reportadas</span>
+                    </div>
+                    <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 p-4 rounded-xl flex flex-col justify-center text-center sm:text-left shadow-xs">
+                      <span className="text-3xl font-black text-emerald-650 dark:text-emerald-450 leading-none">{totalMascotasFiltered.toLocaleString()}</span>
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-450 uppercase tracking-wider mt-2">Resultados Filtrados</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lado derecho: Botón grande */}
+                <div className="lg:col-span-4 flex flex-col gap-3 w-full lg:items-end justify-end h-full">
+                  <Dialog open={isPetDialogOpen} onOpenChange={setIsPetDialogOpen}>
+                    <DialogTrigger render={
+                      <button className="w-full h-16 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-base md:text-lg shadow-md hover:shadow-emerald-650/20 transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider">
+                        Reportar Mascota
+                      </button>
+                    } />
+                    <DialogContent className="sm:max-w-lg w-[95%] bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
+                      <DialogHeader>
+                        <DialogTitle className="text-lg font-bold font-heading text-neutral-900 dark:text-white">
+                          Registrar Mascota
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-neutral-500 dark:text-neutral-450">
+                          Ingresa las características y foto de la mascota para ayudar en su búsqueda o para reportar que la tienes bajo resguardo.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <RegisterPetForm
+                        onSuccess={handleRegisterPetSuccess}
+                        onClose={() => setIsPetDialogOpen(false)}
+                      />
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </div>
+
+              {/* Barra de Filtros y Búsqueda */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 bg-white dark:bg-neutral-900 p-4 border border-neutral-200 dark:border-neutral-800 rounded-2xl transition-colors duration-300">
+                {/* Buscador de Texto */}
+                <div className="sm:col-span-4 relative w-full">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por color, señas..."
+                    value={mascotasQuery}
+                    onChange={(e) => setMascotasQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 text-xs md:text-sm rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all"
+                  />
+                </div>
+
+                {/* Filtro por Especie */}
+                <div className="sm:col-span-2">
+                  <select
+                    value={mascotasEspecie}
+                    onChange={(e) => setMascotasEspecie(e.target.value)}
+                    className="w-full h-[38px] px-3 text-xs md:text-sm rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="Todos">Especie: Todas</option>
+                    <option value="Perro">Perros</option>
+                    <option value="Gato">Gatos</option>
+                    <option value="Otro">Otros</option>
+                  </select>
+                </div>
+
+                {/* Filtro por Estado */}
+                <div className="sm:col-span-3">
+                  <select
+                    value={mascotasState}
+                    onChange={(e) => setMascotasState(e.target.value)}
+                    className="w-full h-[38px] px-3 text-xs md:text-sm rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="">Todos los estados</option>
+                    {VENEZUELA_STATES.map((state) => (
+                      <option key={state} value={state}>
+                        {state}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Filtro por Estatus (Tabs) */}
+                <div className="sm:col-span-3 flex bg-neutral-100 dark:bg-neutral-950 p-1 rounded-xl border border-neutral-200 dark:border-neutral-800 h-[38px]">
+                  {["Todos", "Perdido", "Encontrado", "A Salvo"].map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => setMascotasStatus(status)}
+                      className={`flex-1 text-[9px] font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap px-1 ${
+                        mascotasStatus === status
+                          ? "bg-white dark:bg-neutral-900 text-emerald-600 dark:text-white shadow-sm border border-neutral-200 dark:border-neutral-800/40"
+                          : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-350"
+                      }`}
+                    >
+                      {status === "Todos" ? "Todos" : status === "Perdido" ? "Se Busca" : status === "Encontrado" ? "Resguardado" : "A Salvo"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Listado de Mascotas */}
+              {mascotas.length > 0 ? (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {mascotas.map((mascota) => {
+                      const isPerdido = mascota.estatus === "Perdido";
+                      const isEncontrado = mascota.estatus === "Encontrado";
+                      const initials = (mascota.nombre || mascota.especie)
+                        .substring(0, 2)
+                        .toUpperCase();
+
+                      return (
+                        <div
+                          key={mascota.id}
+                          onClick={() => {
+                            setSelectedPet(mascota);
+                            setIsPetDetailOpen(true);
+                          }}
+                          className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-350 dark:hover:border-neutral-750 rounded-2xl overflow-hidden flex flex-col justify-between transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer group/card"
+                        >
+                          {/* Cabecera / Foto */}
+                          <div className="relative h-64 bg-neutral-100 dark:bg-neutral-950 flex items-center justify-center border-b border-neutral-100 dark:border-neutral-800/50 overflow-hidden">
+                            {mascota.fotoUrl ? (
+                              <img
+                                src={mascota.fotoUrl}
+                                alt={mascota.nombre || mascota.especie}
+                                className="h-full w-full object-contain transition-transform duration-550 group-hover/card:scale-105"
+                              />
+                            ) : (
+                              <div className="h-20 w-20 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-2xl font-black">
+                                {initials}
+                              </div>
+                            )}
+
+                            {/* Badge de Estatus */}
+                            <span className={`absolute top-3 right-3 flex items-center gap-1 text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full shadow-sm border ${
+                              isPerdido
+                                ? "bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50"
+                                : isEncontrado
+                                ? "bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900/50"
+                                : "bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50"
+                            }`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${
+                                isPerdido ? "bg-red-500 animate-pulse" : isEncontrado ? "bg-blue-500" : "bg-emerald-500"
+                              }`} />
+                              {isPerdido ? "Se Busca" : isEncontrado ? "Bajo Resguardo" : "A Salvo"}
+                            </span>
+                          </div>
+
+                          {/* Contenido principal */}
+                          <div className="p-4 flex-grow flex flex-col justify-between gap-4">
+                            <div className="space-y-2">
+                              <div>
+                                <h4 className="text-base font-bold text-neutral-900 dark:text-white font-heading leading-tight truncate transition-colors group-hover/card:text-emerald-600 dark:group-hover/card:text-emerald-400 font-sans">
+                                  {mascota.nombre || "Mascota sin nombre"}
+                                </h4>
+                                <span className="text-[10px] font-bold text-neutral-550 dark:text-neutral-450 block mt-0.5">
+                                  {mascota.especie} {mascota.raza ? `• ${mascota.raza}` : ""}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 text-xs text-neutral-500 dark:text-neutral-450 font-medium">
+                                <span>Visto: <strong>{mascota.fechaContactoPerdido}</strong></span>
+                              </div>
+                              <p className="text-xs text-neutral-600 dark:text-neutral-450 line-clamp-3 leading-relaxed">
+                                <strong className="text-neutral-850 dark:text-neutral-300">{mascota.ultimoVistoEstado}:</strong> {mascota.colorDetalles}
+                              </p>
+                            </div>
+
+                            <div className="space-y-3 pt-3 border-t border-neutral-100 dark:border-neutral-800/50">
+                              {/* Datos del informante */}
+                              <div className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-normal space-y-0.5">
+                                <span className="block text-[9px] font-bold text-neutral-450 dark:text-neutral-550 uppercase tracking-wider mb-1">
+                                  Reportado Por:
+                                </span>
+                                <div className="font-semibold text-neutral-900 dark:text-white">
+                                  {mascota.informanteNombre}
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <Phone className="h-3 w-3 text-neutral-450 dark:text-neutral-500 shrink-0" />
+                                  <span>{mascota.informanteTelefono}</span>
+                                </div>
+                              </div>
+
+                              {/* Botón CTA */}
+                              <button
+                                className="w-full py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-350 dark:hover:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/50 text-neutral-800 dark:text-neutral-300 text-xs font-bold hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all cursor-pointer text-center flex items-center justify-center gap-1.5"
+                              >
+                                <span>Ver Información Completa</span>
+                                <ChevronRight className="h-3.5 w-3.5 text-neutral-400 group-hover/card:translate-x-0.5 transition-transform" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Controles de paginación de mascotas */}
+                  {Math.ceil(totalMascotasFiltered / itemsPerPage) > 1 && (
+                    <div className="flex items-center justify-center gap-2 mt-8 pb-4">
+                      <button
+                        disabled={mascotasPage === 1}
+                        onClick={() => {
+                          setMascotasPage((prev) => Math.max(prev - 1, 1));
+                          window.scrollTo({ top: 400, behavior: "smooth" });
+                        }}
+                        className="px-4 py-2 text-xs md:text-sm font-semibold rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
+                      >
+                        Anterior
+                      </button>
+                      <span className="text-xs md:text-sm font-medium text-neutral-500 dark:text-neutral-450 px-2">
+                        Página <strong>{mascotasPage}</strong> de <strong>{Math.ceil(totalMascotasFiltered / itemsPerPage)}</strong>
+                      </span>
+                      <button
+                        disabled={mascotasPage === Math.ceil(totalMascotasFiltered / itemsPerPage)}
+                        onClick={() => {
+                          setMascotasPage((prev) => Math.min(prev + 1, Math.ceil(totalMascotasFiltered / itemsPerPage)));
+                          window.scrollTo({ top: 400, behavior: "smooth" });
+                        }}
+                        className="px-4 py-2 text-xs md:text-sm font-semibold rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
+                      >
+                        Siguiente
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-12 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                  <p className="text-neutral-400 dark:text-neutral-500 text-sm">
+                    No se encontraron reportes de mascotas que coincidan con la búsqueda.
+                  </p>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -1023,6 +1521,36 @@ export default function Home() {
           onMarkAsFound={handleMarkAsFound}
           onAddReport={handleAddReport}
         />
+
+        {/* Modal de Detalle de Mascota */}
+        <PetDetailModal
+          open={isPetDetailOpen}
+          onOpenChange={setIsPetDetailOpen}
+          mascota={selectedPet}
+          onMarkAsFound={handleMarkPetAsFound}
+        />
+
+        {/* Modal para Reportar Centro de Acopio */}
+        <Dialog open={isReportCentroOpen} onOpenChange={setIsReportCentroOpen}>
+          <DialogContent className="sm:max-w-md w-[95%] bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold font-heading text-neutral-900 dark:text-white">
+                Reportar Problema
+              </DialogTitle>
+              <DialogDescription className="text-xs text-neutral-500 dark:text-neutral-450">
+                Informa sobre alguna anomalía, inactividad o información errónea sobre este centro de acopio.
+              </DialogDescription>
+            </DialogHeader>
+            {reportingCentro && (
+              <ReportCentroForm
+                centroId={reportingCentro.id}
+                centroNombre={reportingCentro.nombre}
+                onSuccess={handleReportCentroSuccess}
+                onClose={() => setIsReportCentroOpen(false)}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
 
       </main>
       <Footer />

@@ -6,11 +6,11 @@ import { useTheme } from "next-themes";
 
 interface HeaderProps {
   scrolledPastNav?: boolean;
-  activeView?: 'acopio' | 'personas';
-  setActiveView?: (view: 'acopio' | 'personas') => void;
+  activeView?: 'acopio' | 'personas' | 'mascotas';
+  setActiveView?: (view: 'acopio' | 'personas' | 'mascotas') => void;
 }
 
-export function Header({ scrolledPastNav = false, activeView = 'acopio', setActiveView }: HeaderProps) {
+export function Header({ scrolledPastNav = false, activeView = 'personas', setActiveView }: HeaderProps) {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -90,6 +90,16 @@ export function Header({ scrolledPastNav = false, activeView = 'acopio', setActi
               }`}
             >
               Buscar Personas
+            </button>
+            <button
+              onClick={() => setActiveView('mascotas')}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer text-center ${
+                activeView === 'mascotas'
+                  ? 'bg-emerald-600 text-white border-emerald-500 ring-2 ring-emerald-400/30 shadow-sm'
+                  : 'bg-transparent text-emerald-600 dark:text-emerald-400 border-emerald-600'
+              }`}
+            >
+              Mascotas
             </button>
           </div>
         )}

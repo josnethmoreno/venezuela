@@ -13,43 +13,9 @@
  *   NEXT_PUBLIC_SUPABASE_ANON_KEY  (o NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
  */
 
-import { readFileSync } from "fs";
-import { createClient } from "@supabase/supabase-js";
+import { makeSupabaseClient } from "./create-client.mjs";
 
-// ─── Leer .env.local manualmente ────────────────────────────────────────────
-function loadEnv() {
-  try {
-    const raw = readFileSync(".env.local", "utf-8");
-    const env = {};
-    for (const line of raw.split(/\r?\n/)) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx === -1) continue;
-      const key = trimmed.slice(0, eqIdx).trim();
-      const val = trimmed.slice(eqIdx + 1).trim();
-      env[key] = val;
-    }
-    return env;
-  } catch {
-    return {};
-  }
-}
-
-const env = loadEnv();
-const SUPABASE_URL =
-  env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY =
-  env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error("❌  Faltan NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY en .env.local");
-  process.exit(1);
-}
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = makeSupabaseClient();
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const SOURCE_API = "https://desaparecidos-terremoto-api.theempire.tech/api";

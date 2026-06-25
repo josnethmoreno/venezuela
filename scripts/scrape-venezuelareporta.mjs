@@ -10,35 +10,9 @@
  *   node scripts/scrape-venezuelareporta.mjs
  */
 
-import { readFileSync } from "fs";
-import { createClient } from "@supabase/supabase-js";
+import { makeSupabaseClient } from "./create-client.mjs";
 
-// ─── Leer .env.local ─────────────────────────────────────────────────────────
-function loadEnv() {
-  try {
-    const raw = readFileSync(".env.local", "utf-8");
-    const env = {};
-    for (const line of raw.split(/\r?\n/)) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx === -1) continue;
-      env[trimmed.slice(0, eqIdx).trim()] = trimmed.slice(eqIdx + 1).trim();
-    }
-    return env;
-  } catch { return {}; }
-}
-
-const env = loadEnv();
-const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error("❌ Faltan credenciales de Supabase en .env.local o variables de entorno");
-  process.exit(1);
-}
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = makeSupabaseClient();
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const BASE_URL = "https://venezuelareporta.org";

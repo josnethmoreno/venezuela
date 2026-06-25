@@ -13,7 +13,7 @@
  *   NEXT_PUBLIC_SUPABASE_ANON_KEY  (o NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
  */
 
-import { makeSupabaseClient } from "./create-client.mjs";
+import { makeSupabaseClient, loadExistingRecords } from "./create-client.mjs";
 
 const supabase = makeSupabaseClient();
 
@@ -154,25 +154,49 @@ async function main() {
   }
 
   console.log(`\n\n✅  Descarga completada: ${allPersons.length.toLocaleString()} personas`);
-  console.log("⬆️  Insertando en Supabase...\n");
 
-  // Mapear y insertar en lotes
-  const mapped = allPersons.map(mapPersona);
+  // ─── Smart Sync: solo upsert si es nuevo o cambió el estatus ───────────────
+  const fullSync = process.env.FULL_SYNC === "1";
+  let toUpsert = allPersons.map(mapPersona);
 
-  for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
-    const batch = mapped.slice(i, i + BATCH_SIZE);
+  if (!fullSync) {
+    process.stdout.write("🔎  Cargando registros existentes de Supabase para comparar...\r");
+    const existing = await loadExistingRecords(supabase, "personas_desaparecidas", "desaparecidos");
+    const before = toUpsert.length;
+    toUpsert = toUpsert.filter((r) => {
+      if (!existing.has(r.external_id)) return true;
+      if (existing.get(r.external_id) !== r.estatus) return true;
+      return false;
+    });
+    const skipped = before - toUpsert.length;
+    console.log(`🔎  ${existing.size.toLocaleString()} registros en DB | ${toUpsert.length} nuevos/actualizados | ${skipped.toLocaleString()} sin cambios (ignorados)`);
+  } else {
+    console.log("🔁  Modo FULL_SYNC activo — upsert de todos los registros");
+  }
+
+  if (toUpsert.length === 0) {
+    console.log("\n✅  No hay cambios que sincronizar. Base de datos al día.");
+    return;
+  }
+
+  console.log("⬆️  Insertando/actualizando en Supabase...\n");
+
+  let successCount = 0;
+  let errorCount = 0;
+
+  for (let i = 0; i < toUpsert.length; i += BATCH_SIZE) {
+    const batch = toUpsert.slice(i, i + BATCH_SIZE);
     const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-    const totalBatches = Math.ceil(mapped.length / BATCH_SIZE);
+    const totalBatches = Math.ceil(toUpsert.length / BATCH_SIZE);
 
     process.stdout.write(
-      `  🔄  Lote ${batchNum}/${totalBatches} (${i + 1}–${Math.min(i + BATCH_SIZE, mapped.length)})...\r`
+      `  🔄  Lote ${batchNum}/${totalBatches} (${i + 1}–${Math.min(i + BATCH_SIZE, toUpsert.length)})...\r`
     );
 
     const ok = await upsertBatch(batch);
     if (ok) {
       successCount += batch.length;
     } else {
-      // Reintentar de a uno si el lote falló
       for (const record of batch) {
         const { error } = await supabase
           .from("personas_desaparecidas")
@@ -188,9 +212,9 @@ async function main() {
   console.log("\n\n═══════════════════════════════════════");
   console.log("🏁  IMPORTACIÓN COMPLETADA");
   console.log("═══════════════════════════════════════");
-  console.log(`  ✅  Insertados exitosamente: ${successCount.toLocaleString()}`);
+  console.log(`  ✅  Insertados/actualizados: ${successCount.toLocaleString()}`);
   console.log(`  ❌  Errores:                 ${errorCount.toLocaleString()}`);
-  console.log(`  📊  Total procesados:        ${allPersons.length.toLocaleString()}`);
+  console.log(`  📊  Total descargados:       ${allPersons.length.toLocaleString()}`);
   console.log("═══════════════════════════════════════\n");
 }
 

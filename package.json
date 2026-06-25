@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "scrape:huellascan": "node scripts/daemon-huellascan.mjs",
+    "scrape:full": "FULL_SYNC=1 node scripts/scrape-venezuelareporta.mjs && FULL_SYNC=1 node scripts/scrape-desaparecidos.mjs",
+    "scrape:full:reporta": "FULL_SYNC=1 node scripts/scrape-venezuelareporta.mjs",
+    "scrape:full:desaparecidos": "FULL_SYNC=1 node scripts/scrape-desaparecidos.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

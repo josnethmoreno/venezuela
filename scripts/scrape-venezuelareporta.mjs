@@ -10,7 +10,8 @@
  *   node scripts/scrape-venezuelareporta.mjs
  */
 
-import { makeSupabaseClient } from "./create-client.mjs";
+import { makeSupabaseClient, loadExistingRecords } from "./create-client.mjs";
+
 
 const supabase = makeSupabaseClient();
 
@@ -230,27 +231,50 @@ async function main() {
   }
 
   console.log(`\n\n✅  Descarga completada: ${allPersonas.length.toLocaleString()} personas`);
-  console.log("⬆️  Insertando en Supabase...\n");
+
+  // ─── Smart Sync: solo upsert si es nuevo o cambió el estatus ───────────────
+  const fullSync = process.env.FULL_SYNC === "1";
+  let toUpsert = allPersonas.map(mapPersona);
+
+  if (!fullSync) {
+    process.stdout.write("🔎  Cargando registros existentes de Supabase para comparar...\r");
+    const existing = await loadExistingRecords(supabase, "personas_desaparecidas", "venezuelareporta");
+    const before = toUpsert.length;
+    toUpsert = toUpsert.filter((r) => {
+      if (!existing.has(r.external_id)) return true;       // Nuevo → insertar
+      if (existing.get(r.external_id) !== r.estatus) return true; // Estatus cambió → actualizar
+      return false;                                         // Sin cambios → ignorar
+    });
+    const skipped = before - toUpsert.length;
+    console.log(`🔎  ${existing.size.toLocaleString()} registros en DB | ${toUpsert.length} nuevos/actualizados | ${skipped.toLocaleString()} sin cambios (ignorados)`);
+  } else {
+    console.log("🔁  Modo FULL_SYNC activo — upsert de todos los registros");
+  }
+
+  if (toUpsert.length === 0) {
+    console.log("\n✅  No hay cambios que sincronizar. Base de datos al día.");
+    return;
+  }
+
+  console.log("⬆️  Insertando/actualizando en Supabase...\n");
 
   // Mapear y insertar
-  const mapped = allPersonas.map(mapPersona);
   let successCount = 0;
   let errorCount = 0;
 
-  for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
-    const batch = mapped.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < toUpsert.length; i += BATCH_SIZE) {
+    const batch = toUpsert.slice(i, i + BATCH_SIZE);
     const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-    const totalBatches = Math.ceil(mapped.length / BATCH_SIZE);
+    const totalBatches = Math.ceil(toUpsert.length / BATCH_SIZE);
 
     process.stdout.write(
-      `  🔄  Lote ${batchNum}/${totalBatches} (${i + 1}–${Math.min(i + BATCH_SIZE, mapped.length)})...\r`
+      `  🔄  Lote ${batchNum}/${totalBatches} (${i + 1}–${Math.min(i + BATCH_SIZE, toUpsert.length)})...\r`
     );
 
     const ok = await upsertBatch(batch);
     if (ok) {
       successCount += batch.length;
     } else {
-      // Reintentar de a uno
       for (const record of batch) {
         const { error } = await supabase
           .from("personas_desaparecidas")
@@ -266,9 +290,9 @@ async function main() {
   console.log("\n\n═══════════════════════════════════════");
   console.log("🏁  IMPORTACIÓN COMPLETADA — venezuelareporta.org");
   console.log("═══════════════════════════════════════");
-  console.log(`  ✅  Insertados exitosamente: ${successCount.toLocaleString()}`);
+  console.log(`  ✅  Insertados/actualizados: ${successCount.toLocaleString()}`);
   console.log(`  ❌  Errores:                 ${errorCount.toLocaleString()}`);
-  console.log(`  📊  Total procesados:        ${allPersonas.length.toLocaleString()}`);
+  console.log(`  📊  Total descargados:       ${allPersonas.length.toLocaleString()}`);
   console.log(`  ⚠️  Páginas con error:       ${errorPages}`);
   console.log("═══════════════════════════════════════\n");
 }

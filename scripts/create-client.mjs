@@ -59,3 +59,35 @@ export function makeSupabaseClient() {
 
   return createClient(url, key, options);
 }
+
+// ─── Cargar registros existentes de Supabase ─────────────────────────────────
+// Devuelve un Map de external_id → estatus para comparar rápidamente
+export async function loadExistingRecords(supabase, tabla, fuente) {
+  const map = new Map();
+  const PAGE = 1000;
+  let from = 0;
+
+  // Paginar para manejar fuentes con 50K+ registros
+  while (true) {
+    const { data, error } = await supabase
+      .from(tabla)
+      .select("external_id, estatus")
+      .eq("fuente", fuente)
+      .range(from, from + PAGE - 1);
+
+    if (error) {
+      console.error(`⚠️  Error al cargar registros existentes de ${tabla}: ${error.message}`);
+      break;
+    }
+    if (!data || data.length === 0) break;
+
+    for (const row of data) {
+      if (row.external_id) map.set(row.external_id, row.estatus);
+    }
+
+    if (data.length < PAGE) break; // Última página
+    from += PAGE;
+  }
+
+  return map;
+}

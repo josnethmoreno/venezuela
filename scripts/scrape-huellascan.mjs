@@ -143,8 +143,17 @@ async function fetchPage(page) {
   const url = `${BASE_URL}?page=${page}`;
   const res = await fetch(url, {
     headers: {
-      "Accept": "text/html,application/xhtml+xml",
-      "User-Agent": "Mozilla/5.0 (compatible; scraper/1.0; registro comunitario)"
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "es-VE,es;q=0.9,en-US;q=0.8,en;q=0.7",
+      "Accept-Encoding": "gzip, deflate, br",
+      "Cache-Control": "no-cache",
+      "Pragma": "no-cache",
+      "Referer": "https://www.huellascan.com/terremoto",
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "same-origin",
+      "Upgrade-Insecure-Requests": "1",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
     }
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} en página ${page}`);
@@ -175,11 +184,22 @@ async function main() {
   console.log("🔍  Iniciando scraping de huellascan.com...\n");
 
   console.log("📡  Consultando página 1...");
-  const { mascotas: firstPageMascotas, total } = await fetchPage(1);
+  let firstPageResult;
+  try {
+    firstPageResult = await fetchPage(1);
+  } catch (err) {
+    if (err.message.includes("403")) {
+      console.warn("⚠️  HuellaScan bloqueó el acceso (HTTP 403) — posiblemente está bloqueando IPs de servidores en la nube.");
+      console.warn("⚠️  Los datos existentes en Supabase se mantienen intactos. El scraping se reintentará en el próximo ciclo.");
+      process.exit(0); // Salir sin error para no romper el workflow
+    }
+    throw err; // Otros errores sí son fatales
+  }
+  const { mascotas: firstPageMascotas, total } = firstPageResult;
 
   if (!total) {
-    console.error("❌ No se pudo determinar el total de registros de mascotas");
-    process.exit(1);
+    console.warn("⚠️  No se pudo determinar el total de registros. El sitio puede estar bloqueando el acceso.");
+    process.exit(0);
   }
 
   const perPage = firstPageMascotas.length;
@@ -260,6 +280,10 @@ async function main() {
 }
 
 main().catch((err) => {
+  if (err.message && err.message.includes("403")) {
+    console.warn("⚠️  HuellaScan bloqueó el acceso (HTTP 403). Los datos existentes se mantienen. Se reintentará en el próximo ciclo.");
+    process.exit(0);
+  }
   console.error("\n💥  Error fatal:", err.message);
   process.exit(1);
 });

@@ -685,7 +685,14 @@ export default function Home() {
           setTotalMascotas((prev) => prev + 1);
         }
       } catch (err) {
-        console.error("Error insertando mascota en Supabase:", err);
+        console.error("Error insertando mascota en Supabase:", {
+          message: (err as any)?.message,
+          details: (err as any)?.details,
+          hint: (err as any)?.hint,
+          code: (err as any)?.code,
+          error: err
+        });
+        alert(`Error al registrar mascota: ${(err as any)?.message || JSON.stringify(err)}`);
       }
     } else {
       const record: Mascota = {

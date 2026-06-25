@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -99,6 +99,9 @@ export function RegisterPetForm({ onSuccess, onClose }: RegisterPetFormProps) {
       ultimoVistoEstado: "",
       nombre: "",
       raza: "",
+      ultimoVistoDetalles: "",
+      colorDetalles: "",
+      especie: "Perro",
       informanteNombre: "",
       informanteTelefono: "",
       informanteEmail: "",
@@ -108,6 +111,12 @@ export function RegisterPetForm({ onSuccess, onClose }: RegisterPetFormProps) {
 
   const watchEstatus = watch("estatus");
   const watchEspecie = watch("especie");
+
+  // Manual field registration for custom button elements
+  useEffect(() => {
+    register("especie");
+    register("estatus");
+  }, [register]);
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -330,7 +339,7 @@ export function RegisterPetForm({ onSuccess, onClose }: RegisterPetFormProps) {
 
       {/* Datos del Informante */}
       <div className="pt-3 border-t border-neutral-100 dark:border-neutral-800/50 space-y-3">
-        <h4 className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+        <h4 className="text-[11px] font-bold text-emerald-600 dark:text-emerald-450 uppercase tracking-wider">
           Datos de Contacto (Persona que Reporta)
         </h4>
         

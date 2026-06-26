@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
-import { MapPin, Users, CheckCircle2, ShieldAlert, Phone, Search, ChevronRight, PawPrint, Flag } from "lucide-react";
+import { MapPin, Users, CheckCircle2, ShieldAlert, Phone, Search, ChevronRight, PawPrint, Flag, Heart } from "lucide-react";
 import { MapVenezuela } from "@/components/MapVenezuela";
 import { MOCK_CENTROS, CentroAcopio } from "@/data/mockCentros";
 import {
@@ -877,6 +877,66 @@ export default function Home() {
     );
   };
 
+  const handleUpdatePet = async (updatedPet: Mascota) => {
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase!
+          .from("mascotas")
+          .update({
+            nombre: updatedPet.nombre,
+            especie: updatedPet.especie,
+            raza: updatedPet.raza,
+            color_detalles: updatedPet.colorDetalles,
+            ultimo_visto_estado: updatedPet.ultimoVistoEstado,
+            ultimo_visto_detalles: updatedPet.ultimoVistoDetalles,
+            fecha_contacto_perdido: updatedPet.fechaContactoPerdido,
+            foto_url: updatedPet.fotoUrl,
+            informante_nombre: updatedPet.informanteNombre,
+            informante_telefono: updatedPet.informanteTelefono,
+            informante_email: updatedPet.informanteEmail,
+            estatus: updatedPet.estatus
+          })
+          .eq("id", updatedPet.id);
+        
+        if (error) throw error;
+      } catch (err) {
+        console.error("Error al actualizar mascota en Supabase:", err);
+        alert(`Error al actualizar: ${(err as any)?.message || JSON.stringify(err)}`);
+        return;
+      }
+    }
+
+    setMascotas((prev) =>
+      prev.map((m) => (m.id === updatedPet.id ? updatedPet : m))
+    );
+    if (selectedPet && selectedPet.id === updatedPet.id) {
+      setSelectedPet(updatedPet);
+    }
+  };
+
+  const handleDeletePet = async (id: string) => {
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase!
+          .from("mascotas")
+          .delete()
+          .eq("id", id);
+        
+        if (error) throw error;
+      } catch (err) {
+        console.error("Error al eliminar mascota en Supabase:", err);
+        alert(`Error al eliminar: ${(err as any)?.message || JSON.stringify(err)}`);
+        return;
+      }
+    }
+
+    setMascotas((prev) => prev.filter((m) => m.id !== id));
+    setTotalMascotas((prev) => Math.max(0, prev - 1));
+    setTotalMascotasFiltered((prev) => Math.max(0, prev - 1));
+    setIsPetDetailOpen(false);
+    setSelectedPet(null);
+  };
+
   const handleReportCentroSuccess = async (report: { razon: string; detalles: string }) => {
     if (!reportingCentro) return;
     if (isSupabaseConfigured) {
@@ -909,7 +969,7 @@ export default function Home() {
       <main className="flex-grow max-w-7xl w-full mx-auto px-4 py-8 flex flex-col gap-8">
         
         {/* Botones de navegación (Antes del Hero) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl w-full mx-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
           
           {/* Primer botón (Secondary) - Centros de Acopio */}
           <button
@@ -994,6 +1054,29 @@ export default function Home() {
               <span className="absolute top-4 right-4 flex h-2 w-2 rounded-full bg-white animate-ping" />
             )}
           </button>
+
+          {/* Cuarto botón (Amber) - Donar */}
+          <a
+            href="https://venezuelareporta.org/recursos#donar"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative flex items-start gap-4 p-6 rounded-2xl border border-amber-500 text-left transition-all duration-300 cursor-pointer bg-amber-600 text-white shadow-md hover:border-amber-400 hover:scale-[1.01]"
+          >
+            <div className="p-3 rounded-xl bg-white text-amber-600 transition-colors">
+              <Heart className="h-6 w-6 fill-amber-600 text-amber-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="block text-[10px] font-bold text-amber-200 uppercase tracking-wider">
+                Apoyo Solidario
+              </span>
+              <h3 className="text-lg font-bold font-heading text-white mt-1">
+                Donar
+              </h3>
+              <p className="text-amber-100 text-xs md:text-sm mt-1.5 leading-relaxed">
+                Colabora con recursos económicos para la ayuda humanitaria
+              </p>
+            </div>
+          </a>
 
         </div>
 
@@ -1853,6 +1936,8 @@ export default function Home() {
           onOpenChange={setIsPetDetailOpen}
           mascota={selectedPet}
           onMarkAsFound={handleMarkPetAsFound}
+          onUpdatePet={handleUpdatePet}
+          onDeletePet={handleDeletePet}
         />
 
         {/* Modal para Reportar Centro de Acopio */}

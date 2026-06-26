@@ -73,27 +73,27 @@ export function Header({ scrolledPastNav = false, activeView = 'personas', setAc
           <div className="flex md:hidden w-full gap-[4px] mt-1.5 border-t border-neutral-100 dark:border-neutral-900/50 pt-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
             <button
               onClick={() => setActiveView('acopio')}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer text-center ${
+              className={`flex-1 py-1.5 text-[10px] font-bold rounded-xl border transition-all cursor-pointer text-center ${
                 activeView === 'acopio'
                   ? 'bg-white text-neutral-900 border-neutral-200 dark:bg-white dark:text-neutral-950 dark:border-white ring-2 ring-neutral-400/30 shadow-sm'
                   : 'bg-neutral-900 text-white border-white'
               }`}
             >
-              Centros de Acopio
+              Acopio
             </button>
             <button
               onClick={() => setActiveView('personas')}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer text-center ${
+              className={`flex-1 py-1.5 text-[10px] font-bold rounded-xl border transition-all cursor-pointer text-center ${
                 activeView === 'personas'
                   ? 'bg-red-600 text-white border-red-500 ring-2 ring-red-400/30 shadow-sm'
                   : 'bg-transparent text-red-600 dark:text-red-400 border-red-600'
               }`}
             >
-              Buscar Personas
+              Personas
             </button>
             <button
               onClick={() => setActiveView('mascotas')}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer text-center ${
+              className={`flex-1 py-1.5 text-[10px] font-bold rounded-xl border transition-all cursor-pointer text-center ${
                 activeView === 'mascotas'
                   ? 'bg-emerald-600 text-white border-emerald-500 ring-2 ring-emerald-400/30 shadow-sm'
                   : 'bg-transparent text-emerald-600 dark:text-emerald-400 border-emerald-600'
@@ -101,6 +101,14 @@ export function Header({ scrolledPastNav = false, activeView = 'personas', setAc
             >
               Mascotas
             </button>
+            <a
+              href="https://venezuelareporta.org/recursos#donar"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 py-1.5 text-[10px] font-bold rounded-xl border transition-all cursor-pointer text-center bg-transparent text-amber-600 dark:text-amber-400 border-amber-600 dark:border-amber-500/50"
+            >
+              Donar
+            </a>
           </div>
         )}
       </div>

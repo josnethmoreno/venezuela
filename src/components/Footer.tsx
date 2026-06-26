@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Heart, Phone, Shield, ShieldAlert, ExternalLink, LifeBuoy, BookOpen, AlertTriangle, Mail, Twitter } from "lucide-react";
+import { Heart, Phone, Shield, ShieldAlert, ExternalLink, LifeBuoy, BookOpen, AlertTriangle, Mail, X } from "lucide-react";
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
@@ -129,7 +129,7 @@ export function Footer() {
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 hover:text-neutral-900 dark:hover:text-white transition-colors group"
                 >
-                  <Twitter className="h-3.5 w-3.5 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300" />
+                  <X className="h-3.5 w-3.5 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-300" />
                   <span>RedAyudaVE en X (Twitter)</span>
                 </a>
               </li>

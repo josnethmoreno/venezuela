@@ -1309,7 +1309,7 @@ export default function Home() {
                 )}
               </div>
             );
-          })()) : activeView === 'personas' ? (
+          })() : activeView === 'personas' ? (
             <div className="space-y-6">
               {/* Encabezado Personas Desaparecidas con Estadísticas */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start border-b border-neutral-200 dark:border-neutral-800 pb-6">

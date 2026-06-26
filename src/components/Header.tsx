@@ -6,11 +6,11 @@ import { useTheme } from "next-themes";
 
 interface HeaderProps {
   scrolledPastNav?: boolean;
-  activeView?: 'acopio' | 'personas' | 'mascotas';
-  setActiveView?: (view: 'acopio' | 'personas' | 'mascotas') => void;
+  activeView?: 'acopio' | 'mascotas';
+  setActiveView?: (view: 'acopio' | 'mascotas') => void;
 }
 
-export function Header({ scrolledPastNav = false, activeView = 'personas', setActiveView }: HeaderProps) {
+export function Header({ scrolledPastNav = false, activeView = 'acopio', setActiveView }: HeaderProps) {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -81,16 +81,14 @@ export function Header({ scrolledPastNav = false, activeView = 'personas', setAc
             >
               Acopio
             </button>
-            <button
-              onClick={() => setActiveView('personas')}
-              className={`flex-1 py-1.5 text-[10px] font-bold rounded-xl border transition-all cursor-pointer text-center ${
-                activeView === 'personas'
-                  ? 'bg-red-600 text-white border-red-500 ring-2 ring-red-400/30 shadow-sm'
-                  : 'bg-transparent text-red-600 dark:text-red-400 border-red-600'
-              }`}
+            <a
+              href="https://desaparecidosterremotovenezuela.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 py-1.5 text-[10px] font-bold rounded-xl border transition-all cursor-pointer text-center bg-transparent text-red-650 dark:text-red-400 border-red-600 dark:border-red-500/50 flex items-center justify-center"
             >
               Personas
-            </button>
+            </a>
             <button
               onClick={() => setActiveView('mascotas')}
               className={`flex-1 py-1.5 text-[10px] font-bold rounded-xl border transition-all cursor-pointer text-center ${

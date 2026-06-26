@@ -32,7 +32,7 @@ const VENEZUELA_STATES = [
 ];
 
 export default function Home() {
-  const [activeView, setActiveView] = useState<'acopio' | 'personas' | 'mascotas'>('personas');
+  const [activeView, setActiveView] = useState<'acopio' | 'mascotas'>('acopio');
   const [scrolledPastNav, setScrolledPastNav] = useState(false);
 
   // Estados para Mascotas
@@ -126,70 +126,7 @@ export default function Home() {
     }
 
     if (personaId) {
-      // Buscar localmente primero
-      const localFound = desaparecidos.find((p) => p.id.startsWith(personaId) || p.id === personaId);
-      if (localFound) {
-        setSelectedPerson(localFound);
-        setIsDetailOpen(true);
-        setActiveView("personas");
-        setHasCheckedUrlParam(true);
-      } else if (isSupabaseConfigured) {
-        const fetchPersona = async () => {
-          try {
-            let data = null;
-            if (personaId.length === 36) {
-              const { data: resData, error } = await supabase!
-                .from("personas_desaparecidas")
-                .select("*, reportes_informacion(*)")
-                .eq("id", personaId)
-                .single();
-              if (error) throw error;
-              data = resData;
-            } else {
-              const { data: resList, error } = await supabase!
-                .from("personas_desaparecidas")
-                .select("*, reportes_informacion(*)");
-              if (error) throw error;
-              data = resList?.find((p: any) => p.id.startsWith(personaId));
-            }
-
-            if (data) {
-              const record: PersonaDesaparecida = {
-                id: data.id,
-                nombreCompleto: data.nombre_completo,
-                cedula: data.cedula,
-                edad: data.edad,
-                ultimoVistoEstado: data.ultimo_visto_estado,
-                ultimoVistoDetalles: data.ultimo_visto_detalles,
-                fechaContactoPerdido: data.fecha_contacto_perdido,
-                fotoUrl: data.foto_url,
-                informanteNombre: data.informante_nombre,
-                informanteTelefono: data.informante_telefono,
-                informanteEmail: data.informante_email,
-                estatus: data.estatus,
-                creadoEn: data.creado_en,
-                reportes: (data.reportes_informacion || []).map((r: any) => ({
-                  id: r.id,
-                  autorNombre: r.autor_nombre,
-                  autorTelefono: r.autor_telefono,
-                  mensaje: r.mensaje,
-                  fecha: r.fecha
-                })).sort((a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
-              };
-              setSelectedPerson(record);
-              setIsDetailOpen(true);
-              setActiveView("personas");
-            }
-          } catch (err) {
-            console.error("Error al obtener persona del link:", err);
-          } finally {
-            setHasCheckedUrlParam(true);
-          }
-        };
-        fetchPersona();
-      } else {
-        setHasCheckedUrlParam(true);
-      }
+      setHasCheckedUrlParam(true);
     } else if (mascotaId) {
       // Buscar localmente primero
       const localFound = mascotas.find(
@@ -1000,13 +937,11 @@ export default function Home() {
           </button>
 
           {/* Segundo botón (Primary) - Personas Desaparecidas */}
-          <button
-            onClick={() => setActiveView('personas')}
-            className={`group relative flex items-start gap-4 p-6 rounded-2xl border border-red-500 text-left transition-all duration-300 cursor-pointer bg-red-600 text-white shadow-md ${
-              activeView === 'personas'
-                ? 'ring-2 ring-red-400 ring-offset-2 ring-offset-neutral-950 dark:ring-offset-neutral-900 shadow-[0_0_25px_rgba(239,68,68,0.25)] scale-[1.02]'
-                : 'hover:border-red-400 hover:scale-[1.01]'
-            }`}
+          <a
+            href="https://desaparecidosterremotovenezuela.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative flex items-start gap-4 p-6 rounded-2xl border border-red-500 text-left transition-all duration-300 cursor-pointer bg-red-600 text-white shadow-md hover:border-red-400 hover:scale-[1.01]"
           >
             <div className="p-3 rounded-xl bg-white text-red-600 transition-colors">
               <Users className="h-6 w-6" />
@@ -1022,10 +957,7 @@ export default function Home() {
                 Encuentra y registra personas desaparecidas
               </p>
             </div>
-            {activeView === 'personas' && (
-              <span className="absolute top-4 right-4 flex h-2 w-2 rounded-full bg-white animate-ping" />
-            )}
-          </button>
+          </a>
 
           {/* Tercer botón (Emerald) - Mascotas */}
           <button
@@ -1392,264 +1324,7 @@ export default function Home() {
                 )}
               </div>
             );
-          })() : activeView === 'personas' ? (
-            <div className="space-y-6">
-              {/* Encabezado Personas Desaparecidas con Estadísticas */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start border-b border-neutral-200 dark:border-neutral-800 pb-6">
-                {/* Lado izquierdo: Título y Estadísticas */}
-                <div className="lg:col-span-8 space-y-6">
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold tracking-wider text-red-500 uppercase px-2.5 py-0.5 rounded-full bg-red-100 dark:bg-red-950/30 border border-red-200 dark:border-red-500/20">
-                      Emergencia Colectiva
-                    </span>
-                    <h2 className="text-3xl md:text-5xl font-heading font-black tracking-tight text-neutral-900 dark:text-white leading-none font-sans">
-                      Búsqueda y Reporte de <span className="text-red-500">Personas Sin Contacto</span>
-                    </h2>
-                    <p className="text-neutral-600 dark:text-neutral-400 text-sm md:text-base leading-relaxed mt-1">
-                      Directorio solidario de búsqueda en tiempo real. Si no logras comunicarte con un familiar tras el terremoto, puedes registrar sus datos y foto para coordinar su búsqueda.
-                    </p>
-                  </div>
-
-                  {/* Tarjetas de estadísticas */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-4 rounded-xl flex flex-col justify-center text-center sm:text-left shadow-xs">
-                      <span className="text-3xl font-black text-neutral-900 dark:text-white leading-none">{localTotalReportados.toLocaleString()}</span>
-                      <span className="text-[10px] font-bold text-neutral-450 dark:text-neutral-500 uppercase tracking-wider mt-2">Personas Reportadas</span>
-                    </div>
-                    <div className="bg-red-50/50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 p-4 rounded-xl flex flex-col justify-center text-center sm:text-left shadow-xs">
-                      <span className="text-3xl font-black text-red-650 dark:text-red-400 leading-none">{localTotalSinContacto.toLocaleString()}</span>
-                      <span className="text-[10px] font-bold text-red-500 dark:text-red-450 uppercase tracking-wider mt-2">Aún Sin Contacto</span>
-                    </div>
-                    <div className="bg-green-50/50 dark:bg-green-950/20 border border-green-100 dark:border-green-900/30 p-4 rounded-xl flex flex-col justify-center text-center sm:text-left shadow-xs">
-                      <span className="text-3xl font-black text-green-650 dark:text-green-400 leading-none">{localTotalASalvo.toLocaleString()}</span>
-                      <span className="text-[10px] font-bold text-green-600 dark:text-green-450 uppercase tracking-wider mt-2">Localizados A Salvo</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Lado derecho: Botón grande y texto informativo */}
-                <div className="lg:col-span-4 flex flex-col gap-3 w-full lg:items-end justify-end h-full">
-                  <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <DialogTrigger render={
-                      <button className="w-full h-16 px-6 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-black text-base md:text-lg shadow-md hover:shadow-red-650/20 transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider">
-                        Reportar Desaparecido
-                      </button>
-                    } />
-                    <DialogContent className="sm:max-w-lg w-[95%] bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
-                      <DialogHeader>
-                        <DialogTitle className="text-lg font-bold font-heading text-neutral-900 dark:text-white">
-                          Registrar Persona Sin Contacto
-                        </DialogTitle>
-                        <DialogDescription className="text-xs text-neutral-500 dark:text-neutral-450">
-                          Ingresa los datos de tu familiar o amigo para que otros voluntarios e instituciones puedan colaborar en su localización.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <RegisterMissingForm
-                        onSuccess={handleRegisterSuccess}
-                        onClose={() => setIsDialogOpen(false)}
-                      />
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </div>
-
-              {/* Barra de Filtros y Búsqueda */}
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 bg-white dark:bg-neutral-900 p-4 border border-neutral-200 dark:border-neutral-800 rounded-2xl transition-colors duration-300">
-                
-                {/* Buscador de Texto */}
-                <div className="sm:col-span-6 relative w-full">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                  <input
-                    type="text"
-                    placeholder="Buscar por nombre o descripción..."
-                    value={desaparecidosQuery}
-                    onChange={(e) => setDesaparecidosQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 text-xs md:text-sm rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-red-500 transition-all"
-                  />
-                </div>
-
-                {/* Filtro por Estado */}
-                <div className="sm:col-span-3">
-                  <select
-                    value={desaparecidosState}
-                    onChange={(e) => setDesaparecidosState(e.target.value)}
-                    className="w-full h-[38px] px-3 text-xs md:text-sm rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-red-500"
-                  >
-                    <option value="">Todos los estados</option>
-                    {VENEZUELA_STATES.map((state) => (
-                      <option key={state} value={state}>
-                        {state}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Filtro por Estatus (Tabs) */}
-                <div className="sm:col-span-3 flex bg-neutral-100 dark:bg-neutral-950 p-1 rounded-xl border border-neutral-200 dark:border-neutral-800 h-[38px]">
-                  {["Todos", "Desaparecido", "Localizado"].map((status) => (
-                    <button
-                      key={status}
-                      onClick={() => setDesaparecidosStatus(status)}
-                      className={`flex-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap px-1.5 ${
-                        desaparecidosStatus === status
-                          ? "bg-white dark:bg-neutral-900 text-red-650 dark:text-white text-red-600 shadow-sm border border-neutral-200 dark:border-neutral-800/40"
-                          : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-350"
-                      }`}
-                    >
-                      {status === "Todos" ? "Todos" : status === "Desaparecido" ? "Sin Contacto" : "A Salvo"}
-                    </button>
-                  ))}
-                </div>
-
-              </div>
-
-              {/* Listado de Personas */}
-              {paginatedDesaparecidos.length > 0 ? (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {paginatedDesaparecidos.map((persona) => {
-                    const isDesaparecido = persona.estatus === "Desaparecido";
-                    const initials = persona.nombreCompleto
-                      .split(" ")
-                      .map((n) => n[0])
-                      .slice(0, 2)
-                      .join("")
-                      .toUpperCase();
-
-                    return (
-                      <div
-                        key={persona.id}
-                        onClick={() => {
-                          setSelectedPerson(persona);
-                          setIsDetailOpen(true);
-                        }}
-                        className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-350 dark:hover:border-neutral-750 rounded-2xl overflow-hidden flex flex-col justify-between transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer group/card"
-                      >
-                        {/* Cabecera / Foto */}
-                        <div className="relative h-80 bg-neutral-100 dark:bg-neutral-950 flex items-center justify-center border-b border-neutral-100 dark:border-neutral-800/50 overflow-hidden">
-                          {persona.fotoUrl ? (
-                            <img
-                              src={persona.fotoUrl}
-                              alt={persona.nombreCompleto}
-                              className="h-full w-full object-contain transition-transform duration-550 group-hover/card:scale-105"
-                            />
-                          ) : (
-                            <div className={`h-24 w-24 rounded-full flex items-center justify-center text-3xl font-black tracking-wider transition-transform duration-550 group-hover/card:scale-105 ${
-                              isDesaparecido 
-                                ? "bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-500/20"
-                                : "bg-green-100 dark:bg-green-950/40 text-green-600 dark:text-green-400 border border-green-500/20"
-                            }`}>
-                              {initials}
-                            </div>
-                          )}
-
-                          {/* Badge de Estatus */}
-                          <span className={`absolute top-3 right-3 flex items-center gap-1 text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full shadow-sm border ${
-                            isDesaparecido
-                              ? "bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50"
-                              : "bg-green-50 dark:bg-green-950 text-green-600 dark:text-green-400 border-green-200 dark:border-green-900/50"
-                          }`}>
-                            <span className={`h-1.5 w-1.5 rounded-full ${
-                              isDesaparecido ? "bg-red-500 animate-pulse" : "bg-green-500"
-                            }`} />
-                            {isDesaparecido ? "Sin Contacto" : "A Salvo"}
-                          </span>
-                        </div>
-
-                        {/* Contenido principal */}
-                        <div className="p-4 flex-grow flex flex-col justify-between gap-4">
-                          <div className="space-y-2">
-                            <div>
-                              <h4 className="text-base font-bold text-neutral-900 dark:text-white font-heading leading-tight truncate transition-colors group-hover/card:text-red-600 dark:group-hover/card:text-red-400">
-                                {persona.nombreCompleto}
-                              </h4>
-                              {persona.cedula && (
-                                <span className="text-[10px] font-bold text-neutral-500 dark:text-neutral-450 block mt-0.5">
-                                  C.I.: {persona.cedula}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-3 text-xs text-neutral-500 dark:text-neutral-450 font-medium">
-                              <span>Edad: <strong>{persona.edad} años</strong></span>
-                              <span>•</span>
-                              <span>Último visto: <strong>{persona.fechaContactoPerdido}</strong></span>
-                            </div>
-                            <p className="text-xs text-neutral-600 dark:text-neutral-450 line-clamp-3 leading-relaxed">
-                              <strong className="text-neutral-850 dark:text-neutral-300">{persona.ultimoVistoEstado}:</strong> {persona.ultimoVistoDetalles}
-                            </p>
-                          </div>
-
-                          <div className="space-y-3 pt-3 border-t border-neutral-100 dark:border-neutral-800/50">
-                            {/* Datos del informante */}
-                            <div className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-normal space-y-0.5">
-                              <span className="block text-[9px] font-bold text-neutral-450 dark:text-neutral-550 uppercase tracking-wider mb-1">
-                                Reportado Por:
-                              </span>
-                              <div className="font-semibold text-neutral-900 dark:text-white">
-                                {persona.informanteNombre}
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <Phone className="h-3 w-3 text-neutral-450 dark:text-neutral-500 shrink-0" />
-                                <span>{persona.informanteTelefono}</span>
-                              </div>
-                              {persona.informanteEmail && (
-                                <div className="text-[10px] text-neutral-500 dark:text-neutral-550 truncate pl-4.5">
-                                  {persona.informanteEmail}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Botón CTA para ver la información de la persona */}
-                            <button
-                              className="w-full py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-neutral-350 dark:hover:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/50 text-neutral-800 dark:text-neutral-300 text-xs font-bold hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all cursor-pointer text-center flex items-center justify-center gap-1.5"
-                            >
-                              <span>Ver Información Completa</span>
-                              <ChevronRight className="h-3.5 w-3.5 text-neutral-400 group-hover/card:translate-x-0.5 transition-transform" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {/* Controles de paginación */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-center gap-2 mt-8 pb-4">
-                    <button
-                      disabled={currentPage === 1}
-                      onClick={() => {
-                        setCurrentPage((prev) => Math.max(prev - 1, 1));
-                        window.scrollTo({ top: 400, behavior: "smooth" });
-                      }}
-                      className="px-4 py-2 text-xs md:text-sm font-semibold rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
-                    >
-                      Anterior
-                    </button>
-                    <span className="text-xs md:text-sm font-medium text-neutral-500 dark:text-neutral-450 px-2">
-                      Página <strong>{currentPage}</strong> de <strong>{totalPages}</strong>
-                    </span>
-                    <button
-                      disabled={currentPage === totalPages}
-                      onClick={() => {
-                        setCurrentPage((prev) => Math.min(prev + 1, totalPages));
-                        window.scrollTo({ top: 400, behavior: "smooth" });
-                      }}
-                      className="px-4 py-2 text-xs md:text-sm font-semibold rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
-                    >
-                      Siguiente
-                    </button>
-                  </div>
-                )}
-              </>
-            ) : (
-                <div className="text-center py-12 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                  <p className="text-neutral-400 dark:text-neutral-500 text-sm">
-                    No se encontraron reportes que coincidan con la búsqueda.
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : (
+          })() : (
             <div className="space-y-6">
               {/* Encabezado Mascotas con Estadísticas */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start border-b border-neutral-200 dark:border-neutral-800 pb-6">

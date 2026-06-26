@@ -176,6 +176,9 @@ on public.reportes_centros_acopio for insert with check (true);
 -- ADD COLUMN IF NOT EXISTS external_id text,
 -- ADD COLUMN IF NOT EXISTS prioridad integer NOT NULL DEFAULT 1;
 -- 
--- ALTER TABLE public.mascotas
--- ADD CONSTRAINT mascotas_fuente_external_id_key UNIQUE (fuente, external_id);
+-- 3. Migración para la tabla centros_acopio
+-- ALTER TABLE public.centros_acopio
+-- ADD COLUMN IF NOT EXISTS pais text NOT NULL DEFAULT 'Venezuela',
+-- ADD COLUMN IF NOT EXISTS ciudad text;
+
 

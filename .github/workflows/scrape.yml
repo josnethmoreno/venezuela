@@ -38,3 +38,6 @@ jobs:
           node scripts/scrape-venezuelatebusca.mjs
           echo "🔄 Ejecutando scrape-huellascan.mjs..."
           node scripts/scrape-huellascan.mjs
+          echo "🔄 Ejecutando scrape-aidfinder.mjs..."
+          node scripts/scrape-aidfinder.mjs
+

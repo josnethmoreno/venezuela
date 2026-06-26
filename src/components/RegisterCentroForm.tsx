@@ -29,7 +29,7 @@ const CATEGORIAS_NECESIDADES = [
 
 const formSchema = z.object({
   nombre: z.string().min(3, "El nombre del centro debe tener al menos 3 caracteres"),
-  estado: z.string().min(1, "Selecciona el estado"),
+  estado: z.string().optional(),
   direccion: z.string().min(10, "Ingresa una dirección detallada del centro (mínimo 10 caracteres)"),
   contacto: z.string().min(5, "Ingresa información de contacto útil (teléfono o usuario de red social)"),
 });
@@ -43,12 +43,19 @@ interface RegisterCentroFormProps {
 
 export function RegisterCentroForm({ onSuccess, onClose }: RegisterCentroFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isInternational, setIsInternational] = useState(false);
+  const [paisVal, setPaisVal] = useState("");
+  const [ciudadVal, setCiudadVal] = useState("");
+  const [errorPais, setErrorPais] = useState<string | null>(null);
+  const [errorCiudad, setErrorCiudad] = useState<string | null>(null);
+  const [errorEstado, setErrorEstado] = useState<string | null>(null);
   const [selectedNeeds, setSelectedNeeds] = useState<string[]>([]);
   const [needsError, setNeedsError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema) as any,
@@ -70,10 +77,35 @@ export function RegisterCentroForm({ onSuccess, onClose }: RegisterCentroFormPro
   };
 
   const onSubmit = async (values: FormValues) => {
+    // Reset manual errors
+    setErrorPais(null);
+    setErrorCiudad(null);
+    setErrorEstado(null);
+
+    let hasError = false;
+
+    if (!isInternational) {
+      if (!values.estado) {
+        setErrorEstado("Selecciona el estado");
+        hasError = true;
+      }
+    } else {
+      if (!paisVal.trim()) {
+        setErrorPais("Ingresa el país");
+        hasError = true;
+      }
+      if (!ciudadVal.trim()) {
+        setErrorCiudad("Ingresa la ciudad");
+        hasError = true;
+      }
+    }
+
     if (selectedNeeds.length === 0) {
       setNeedsError("Selecciona al menos una necesidad prioritaria");
-      return;
+      hasError = true;
     }
+
+    if (hasError) return;
 
     setIsSubmitting(true);
     // Simula demora
@@ -81,10 +113,12 @@ export function RegisterCentroForm({ onSuccess, onClose }: RegisterCentroFormPro
 
     onSuccess({
       nombre: values.nombre,
-      estado: values.estado,
+      estado: isInternational ? paisVal.trim() : values.estado!,
       direccion: values.direccion,
       contacto: values.contacto,
       necesidades: selectedNeeds,
+      pais: isInternational ? paisVal.trim() : "Venezuela",
+      ciudad: isInternational ? ciudadVal.trim() : values.estado!,
     });
 
     setIsSubmitting(false);
@@ -93,6 +127,43 @@ export function RegisterCentroForm({ onSuccess, onClose }: RegisterCentroFormPro
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2 text-neutral-900 dark:text-neutral-50">
+      
+      {/* Selector de Tipo de Centro (Nacional / Internacional) */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold">Tipo de Ubicación</Label>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setIsInternational(false);
+              setErrorPais(null);
+              setErrorCiudad(null);
+            }}
+            className={`py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer text-center ${
+              !isInternational
+                ? "bg-blue-50 dark:bg-blue-950/30 border-blue-500 text-blue-600 dark:text-blue-400 font-bold"
+                : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400"
+            }`}
+          >
+            Nacional (Venezuela)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsInternational(true);
+              setErrorEstado(null);
+            }}
+            className={`py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer text-center ${
+              isInternational
+                ? "bg-blue-50 dark:bg-blue-950/30 border-blue-500 text-blue-600 dark:text-blue-400 font-bold"
+                : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400"
+            }`}
+          >
+            Internacional (Extranjero)
+          </button>
+        </div>
+      </div>
+
       {/* Nombre del centro */}
       <div className="space-y-1">
         <Label htmlFor="nombre" className="text-xs font-semibold">
@@ -110,27 +181,62 @@ export function RegisterCentroForm({ onSuccess, onClose }: RegisterCentroFormPro
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Estado */}
-        <div className="space-y-1">
-          <Label htmlFor="estado" className="text-xs font-semibold">
-            Estado de Ubicación <span className="text-red-500">*</span>
-          </Label>
-          <select
-            id="estado"
-            className="w-full h-[40px] px-3 text-xs md:text-sm rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 focus:outline-none focus:ring-1 focus:ring-blue-500 text-neutral-900 dark:text-neutral-100"
-            {...register("estado")}
-          >
-            <option value="" disabled>Selecciona...</option>
-            {VENEZUELA_STATES.map((state) => (
-              <option key={state} value={state}>
-                {state}
-              </option>
-            ))}
-          </select>
-          {errors.estado && (
-            <p className="text-[10px] text-red-500 font-semibold">{errors.estado.message}</p>
-          )}
-        </div>
+        {/* Ubicación (Estado o País/Ciudad) */}
+        {!isInternational ? (
+          <div className="space-y-1">
+            <Label htmlFor="estado" className="text-xs font-semibold">
+              Estado de Ubicación <span className="text-red-500">*</span>
+            </Label>
+            <select
+              id="estado"
+              className="w-full h-[40px] px-3 text-xs md:text-sm rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 focus:outline-none focus:ring-1 focus:ring-blue-500 text-neutral-900 dark:text-neutral-100"
+              {...register("estado")}
+            >
+              <option value="">Selecciona...</option>
+              {VENEZUELA_STATES.map((state) => (
+                <option key={state} value={state}>
+                  {state}
+                </option>
+              ))}
+            </select>
+            {errorEstado && (
+              <p className="text-[10px] text-red-500 font-semibold">{errorEstado}</p>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label htmlFor="pais" className="text-xs font-semibold">
+                País <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="pais"
+                placeholder="Ej: Colombia"
+                value={paisVal}
+                onChange={(e) => setPaisVal(e.target.value)}
+                className="text-xs md:text-sm rounded-lg border-neutral-200 dark:border-neutral-800"
+              />
+              {errorPais && (
+                <p className="text-[10px] text-red-500 font-semibold">{errorPais}</p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="ciudad" className="text-xs font-semibold">
+                Ciudad <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="ciudad"
+                placeholder="Ej: Bogotá"
+                value={ciudadVal}
+                onChange={(e) => setCiudadVal(e.target.value)}
+                className="text-xs md:text-sm rounded-lg border-neutral-200 dark:border-neutral-800"
+              />
+              {errorCiudad && (
+                <p className="text-[10px] text-red-500 font-semibold">{errorCiudad}</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Contacto */}
         <div className="space-y-1">

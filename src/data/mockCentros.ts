@@ -6,6 +6,8 @@ export interface CentroAcopio {
   contacto: string;
   necesidades: string[];
   verificado: boolean;
+  pais?: string;
+  ciudad?: string;
 }
 
 export const MOCK_CENTROS: CentroAcopio[] = [

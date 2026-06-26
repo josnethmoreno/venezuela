@@ -60,6 +60,9 @@ export default function Home() {
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isCentroDialogOpen, setIsCentroDialogOpen] = useState(false);
+  const [isExtranjeroView, setIsExtranjeroView] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
 
   // Estados para Personas Desaparecidas
   const [desaparecidos, setDesaparecidos] = useState<PersonaDesaparecida[]>(
@@ -334,8 +337,10 @@ export default function Home() {
             estado: c.estado,
             direccion: c.direccion,
             contacto: c.contacto,
-            necesidades: ["Agua Potable", "Alimentos no perecederos", "Medicinas y Primeros Auxilios", "Ropa y Cobijas", "Artículos de higiene personal"],
-            verificado: c.verificado
+            necesidades: c.necesidades && c.necesidades.length > 0 ? c.necesidades : ["Agua Potable", "Alimentos no perecederos", "Medicinas y Primeros Auxilios", "Ropa y Cobijas", "Artículos de higiene personal"],
+            verificado: c.verificado,
+            pais: c.pais || "Venezuela",
+            ciudad: c.ciudad || c.estado || ""
           })));
         }
 
@@ -503,12 +508,25 @@ export default function Home() {
 
   // Filtrar centros de acopio
   const filteredCentros = centrosAcopio.filter((centro) => {
-    const matchesState = selectedState ? centro.estado === selectedState : true;
-    const matchesSearch =
-      centro.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      centro.direccion.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      centro.necesidades.some((n) => n.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesState && matchesSearch;
+    const isVzla = !centro.pais || centro.pais.toLowerCase() === "venezuela";
+    if (isExtranjeroView) {
+      if (isVzla) return false;
+      const matchesCountry = selectedCountry ? centro.pais === selectedCountry : true;
+      const matchesCity = selectedCity ? centro.ciudad === selectedCity : true;
+      const matchesSearch =
+        centro.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        centro.direccion.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        centro.necesidades.some((n) => n.toLowerCase().includes(searchQuery.toLowerCase()));
+      return matchesCountry && matchesCity && matchesSearch;
+    } else {
+      if (!isVzla) return false;
+      const matchesState = selectedState ? centro.estado === selectedState : true;
+      const matchesSearch =
+        centro.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        centro.direccion.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        centro.necesidades.some((n) => n.toLowerCase().includes(searchQuery.toLowerCase()));
+      return matchesState && matchesSearch;
+    }
   });
 
   // Filtrar personas desaparecidas
@@ -577,7 +595,9 @@ export default function Home() {
             direccion: newCentro.direccion,
             contacto: newCentro.contacto,
             necesidades: newCentro.necesidades,
-            verificado: false
+            verificado: false,
+            pais: newCentro.pais || "Venezuela",
+            ciudad: newCentro.ciudad || newCentro.estado
           }])
           .select()
           .single();
@@ -590,8 +610,10 @@ export default function Home() {
             estado: data.estado,
             direccion: data.direccion,
             contacto: data.contacto,
-            necesidades: data.necesidades,
-            verificado: data.verificado
+            necesidades: data.necesidades && data.necesidades.length > 0 ? data.necesidades : ["Agua Potable", "Alimentos no perecederos", "Medicinas y Primeros Auxilios", "Ropa y Cobijas", "Artículos de higiene personal"],
+            verificado: data.verificado,
+            pais: data.pais || "Venezuela",
+            ciudad: data.ciudad || data.estado
           };
           setCentrosAcopio((prev) => [record, ...prev]);
         }
@@ -977,159 +999,317 @@ export default function Home() {
 
         {/* Sección de Contenido Activo */}
         <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 mt-4">
-          {activeView === 'acopio' ? (
-            <div className="space-y-6">
-              {/* Encabezado Centros de Acopio */}
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-6">
-                <div className="space-y-2 max-w-2xl">
-                  <span className="text-xs font-bold tracking-wider text-blue-600 dark:text-blue-400 uppercase px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-500/20">
-                    Logística y Donaciones
-                  </span>
-                  <h2 className="text-3xl md:text-5xl font-heading font-black tracking-tight text-neutral-900 dark:text-white leading-none">
-                    Red Nacional de <span className="text-blue-600 dark:text-blue-400">Centros de Acopio</span>
-                  </h2>
-                  <p className="text-neutral-600 dark:text-neutral-400 text-sm md:text-base leading-relaxed mt-1">
-                    Usa el mapa interactivo de Venezuela o el buscador para localizar los puntos autorizados de recolección de agua, alimentos, medicinas y ropa en tu estado.
-                  </p>
-                </div>
-                
-                {/* Botón de acción rápido (Triggeará el Modal) */}
-                <Dialog open={isCentroDialogOpen} onOpenChange={setIsCentroDialogOpen}>
-                  <DialogTrigger render={
-                    <button className="w-full md:w-auto h-12 md:h-10 px-5 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-black font-semibold text-base md:text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2 border border-white/10 dark:border-black/10 shadow-sm cursor-pointer whitespace-nowrap">
-                      Registrar Punto de Acopio
-                    </button>
-                  } />
-                  <DialogContent className="sm:max-w-lg w-[95%] bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
-                    <DialogHeader>
-                      <DialogTitle className="text-lg font-bold font-heading text-neutral-900 dark:text-white">
+          {activeView === 'acopio' ? (() => {
+            const availableCountries = Array.from(
+              new Set(
+                centrosAcopio
+                  .filter((c) => c.pais && c.pais.toLowerCase() !== "venezuela")
+                  .map((c) => c.pais!)
+              )
+            ).sort();
+
+            const availableCities = selectedCountry ? Array.from(
+              new Set(
+                centrosAcopio
+                  .filter((c) => c.pais === selectedCountry && c.ciudad)
+                  .map((c) => c.ciudad!)
+              )
+            ).sort() : [];
+
+            return (
+              <div className="space-y-6">
+                {/* Encabezado Centros de Acopio */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-6">
+                  <div className="space-y-2 max-w-2xl">
+                    <span className="text-xs font-bold tracking-wider text-blue-600 dark:text-blue-400 uppercase px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-500/20">
+                      {isExtranjeroView ? "Logística y Donaciones Internacionales" : "Logística y Donaciones Nacionales"}
+                    </span>
+                    <h2 className="text-3xl md:text-5xl font-heading font-black tracking-tight text-neutral-900 dark:text-white leading-none">
+                      {isExtranjeroView ? (
+                        <>Centros de Acopio <span className="text-blue-600 dark:text-blue-400">en el Extranjero</span></>
+                      ) : (
+                        <>Red Nacional de <span className="text-blue-600 dark:text-blue-400">Centros de Acopio</span></>
+                      )}
+                    </h2>
+                    <p className="text-neutral-600 dark:text-neutral-400 text-sm md:text-base leading-relaxed mt-1">
+                      {isExtranjeroView ? (
+                        "Localiza los puntos autorizados de recolección de agua, alimentos, medicinas y ropa organizados por la comunidad venezolana en el exterior."
+                      ) : (
+                        "Usa el mapa interactivo de Venezuela o el buscador para localizar los puntos autorizados de recolección de agua, alimentos, medicinas y ropa en tu estado."
+                      )}
+                    </p>
+                  </div>
+                  
+                  {/* Botón de acción rápido (Triggeará el Modal) */}
+                  <Dialog open={isCentroDialogOpen} onOpenChange={setIsCentroDialogOpen}>
+                    <DialogTrigger render={
+                      <button className="w-full md:w-auto h-12 md:h-10 px-5 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-black font-semibold text-base md:text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2 border border-white/10 dark:border-black/10 shadow-sm cursor-pointer whitespace-nowrap">
                         Registrar Punto de Acopio
-                      </DialogTitle>
-                      <DialogDescription className="text-xs text-neutral-500 dark:text-neutral-450">
-                        Ingresa los datos del centro de acopio para que las personas necesitadas puedan ubicarlo y donar insumos.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <RegisterCentroForm
-                      onSuccess={handleRegisterCentroSuccess}
-                      onClose={() => setIsCentroDialogOpen(false)}
-                    />
-                  </DialogContent>
-                </Dialog>
-              </div>
+                      </button>
+                    } />
+                    <DialogContent className="sm:max-w-lg w-[95%] bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
+                      <DialogHeader>
+                        <DialogTitle className="text-lg font-bold font-heading text-neutral-900 dark:text-white">
+                          Registrar Punto de Acopio
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-neutral-500 dark:text-neutral-450">
+                          Ingresa los datos del centro de acopio para que las personas necesitadas puedan ubicarlo y donar insumos.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <RegisterCentroForm
+                        onSuccess={handleRegisterCentroSuccess}
+                        onClose={() => setIsCentroDialogOpen(false)}
+                      />
+                    </DialogContent>
+                  </Dialog>
+                </div>
 
-              {/* Mapa Interactivo de Venezuela */}
-              <MapVenezuela
-                selectedState={selectedState}
-                onSelectState={setSelectedState}
-              />
+                {/* Selector Nacional vs Extranjero */}
+                <div className="flex gap-2 border-b border-neutral-100 dark:border-neutral-900/50 pb-2">
+                  <button
+                    onClick={() => {
+                      setIsExtranjeroView(false);
+                      setSelectedCountry(null);
+                      setSelectedCity(null);
+                    }}
+                    className={`px-4 py-2 text-xs md:text-sm font-bold rounded-xl transition-all cursor-pointer ${
+                      !isExtranjeroView
+                        ? "bg-blue-600 text-white shadow-sm ring-2 ring-blue-400/20"
+                        : "bg-transparent text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                    }`}
+                  >
+                    Nacional (Venezuela)
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsExtranjeroView(true);
+                      setSelectedState(null);
+                    }}
+                    className={`px-4 py-2 text-xs md:text-sm font-bold rounded-xl transition-all cursor-pointer ${
+                      isExtranjeroView
+                        ? "bg-blue-600 text-white shadow-sm ring-2 ring-blue-400/20"
+                        : "bg-transparent text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                    }`}
+                  >
+                    Extranjero (Internacional)
+                  </button>
+                </div>
 
-              {/* Filtro y Buscador */}
-              <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white dark:bg-neutral-900 p-4 border border-neutral-200 dark:border-neutral-800 rounded-2xl transition-colors duration-300">
-                <div className="relative w-full md:w-80">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                  <input
-                    type="text"
-                    placeholder="Buscar por nombre, dirección o insumo..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 text-xs md:text-sm rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all"
+                {/* Mapa Interactivo (Sólo Nacional) */}
+                {!isExtranjeroView ? (
+                  <MapVenezuela
+                    selectedState={selectedState}
+                    onSelectState={setSelectedState}
                   />
-                </div>
-                <div className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
-                  {selectedState ? (
-                    <span>
-                      Mostrando <strong className="text-neutral-800 dark:text-white">{filteredCentros.length}</strong> centros en <strong>{selectedState}</strong>
-                    </span>
-                  ) : (
-                    <span>
-                      Mostrando <strong className="text-neutral-800 dark:text-white">{filteredCentros.length}</strong> centros en todo el país
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Listado de Centros de Acopio */}
-              {filteredCentros.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredCentros.map((centro) => (
-                    <div
-                      key={centro.id}
-                      className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700/85 p-5 rounded-2xl flex flex-col justify-between gap-4 transition-all shadow-sm duration-300"
-                    >
-                      <div className="space-y-2">
-                        {/* Cabecera del Centro */}
-                        <div className="flex items-start justify-between gap-2">
-                          <h4 className="text-base font-bold text-neutral-900 dark:text-white font-heading leading-tight">
-                            {centro.nombre}
-                          </h4>
-                          {centro.verificado ? (
-                            <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800/30 shrink-0">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Verificado
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/30 shrink-0">
-                              <ShieldAlert className="h-3 w-3" />
-                              Por Verificar
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Ubicación */}
-                        <div className="flex items-start gap-1.5 text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                          <MapPin className="h-4 w-4 text-neutral-400 shrink-0 mt-0.5" />
-                          <span>
-                            <strong className="text-neutral-800 dark:text-neutral-200">{centro.estado}</strong> — {centro.direccion}
-                          </span>
-                        </div>
-
-                        {/* Contacto */}
-                        <div className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
-                          <Phone className="h-4 w-4 text-neutral-400 shrink-0" />
-                          <span>{centro.contacto}</span>
-                        </div>
-                      </div>
-
-                      {/* Insumos solicitados */}
-                      <div className="space-y-1.5 pt-3 border-t border-neutral-100 dark:border-neutral-800/50 flex flex-col sm:flex-row justify-between sm:items-end gap-3">
-                        <div className="space-y-1.5 flex-1">
-                          <span className="block text-[10px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
-                            Necesidades Urgentes
-                          </span>
-                          <div className="flex flex-wrap gap-1">
-                            {centro.necesidades.map((necesidad, idx) => (
-                              <span
-                                key={idx}
-                                className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/20"
-                              >
-                                {necesidad}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
+                ) : (
+                  /* Selectores de País y Ciudad (Sólo Extranjero) */
+                  <div className="bg-white dark:bg-neutral-900 p-5 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-4">
+                    <div className="space-y-2">
+                      <span className="block text-xs font-bold text-neutral-450 dark:text-neutral-500 uppercase tracking-wider">
+                        Selecciona un País
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
                         <button
                           onClick={() => {
-                            setReportingCentro({ id: centro.id, nombre: centro.nombre });
-                            setIsReportCentroOpen(true);
+                            setSelectedCountry(null);
+                            setSelectedCity(null);
                           }}
-                          className="flex items-center gap-1 text-[10px] font-bold text-red-500 hover:text-red-700 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 px-2.5 py-1 rounded-lg shrink-0 cursor-pointer self-start sm:self-auto transition-colors"
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                            !selectedCountry
+                              ? "bg-blue-50 dark:bg-blue-950/30 border-blue-500 text-blue-600 dark:text-blue-400"
+                              : "bg-neutral-50 dark:bg-neutral-950 border-neutral-200 dark:border-neutral-850 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                          }`}
                         >
-                          <Flag className="h-3 w-3" />
-                          Reportar Problema
+                          Todos los países ({centrosAcopio.filter(c => c.pais && c.pais.toLowerCase() !== "venezuela").length})
                         </button>
+                        {availableCountries.map((country) => {
+                          const count = centrosAcopio.filter(c => c.pais === country).length;
+                          return (
+                            <button
+                              key={country}
+                              onClick={() => {
+                                setSelectedCountry(country);
+                                setSelectedCity(null);
+                              }}
+                              className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                                selectedCountry === country
+                                  ? "bg-blue-50 dark:bg-blue-950/30 border-blue-500 text-blue-600 dark:text-blue-400"
+                                  : "bg-neutral-50 dark:bg-neutral-950 border-neutral-200 dark:border-neutral-850 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                              }`}
+                            >
+                              {country} ({count})
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
-                  ))}
+
+                    {selectedCountry && (
+                      <div className="space-y-2 pt-2 border-t border-neutral-100 dark:border-neutral-800/50">
+                        <span className="block text-xs font-bold text-neutral-450 dark:text-neutral-500 uppercase tracking-wider">
+                          Ciudades en {selectedCountry}
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          <button
+                            onClick={() => setSelectedCity(null)}
+                            className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                              !selectedCity
+                                ? "bg-blue-50 dark:bg-blue-950/30 border-blue-500 text-blue-600 dark:text-blue-400"
+                                : "bg-neutral-50 dark:bg-neutral-950 border-neutral-200 dark:border-neutral-850 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                            }`}
+                          >
+                            Todas las ciudades
+                          </button>
+                          {availableCities.map((city) => {
+                            const count = centrosAcopio.filter(c => c.pais === selectedCountry && c.ciudad === city).length;
+                            return (
+                              <button
+                                key={city}
+                                onClick={() => setSelectedCity(city)}
+                                className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                                  selectedCity === city
+                                    ? "bg-blue-50 dark:bg-blue-950/30 border-blue-500 text-blue-600 dark:text-blue-400"
+                                    : "bg-neutral-50 dark:bg-neutral-950 border-neutral-200 dark:border-neutral-850 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                                }`}
+                              >
+                                {city} ({count})
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Filtro y Buscador */}
+                <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white dark:bg-neutral-900 p-4 border border-neutral-200 dark:border-neutral-800 rounded-2xl transition-colors duration-300">
+                  <div className="relative w-full md:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por nombre, dirección o insumo..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 text-xs md:text-sm rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all"
+                    />
+                  </div>
+                  <div className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
+                    {isExtranjeroView ? (
+                      selectedCountry ? (
+                        selectedCity ? (
+                          <span>
+                            Mostrando <strong className="text-neutral-800 dark:text-white">{filteredCentros.length}</strong> centros en <strong>{selectedCity}, {selectedCountry}</strong>
+                          </span>
+                        ) : (
+                          <span>
+                            Mostrando <strong className="text-neutral-800 dark:text-white">{filteredCentros.length}</strong> centros en <strong>{selectedCountry}</strong>
+                          </span>
+                        )
+                      ) : (
+                        <span>
+                          Mostrando <strong className="text-neutral-800 dark:text-white">{filteredCentros.length}</strong> centros internacionales
+                        </span>
+                      )
+                    ) : (
+                      selectedState ? (
+                        <span>
+                          Mostrando <strong className="text-neutral-800 dark:text-white">{filteredCentros.length}</strong> centros en <strong>{selectedState}</strong>
+                        </span>
+                      ) : (
+                        <span>
+                          Mostrando <strong className="text-neutral-800 dark:text-white">{filteredCentros.length}</strong> centros en todo el país
+                        </span>
+                      )
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <div className="text-center py-12 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-                  <p className="text-neutral-400 dark:text-neutral-500 text-sm">
-                    No se encontraron centros de acopio que coincidan con los filtros aplicados.
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : activeView === 'personas' ? (
+
+                {/* Listado de Centros de Acopio */}
+                {filteredCentros.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {filteredCentros.map((centro) => (
+                      <div
+                        key={centro.id}
+                        className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700/85 p-5 rounded-2xl flex flex-col justify-between gap-4 transition-all shadow-sm duration-300"
+                      >
+                        <div className="space-y-2">
+                          {/* Cabecera del Centro */}
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="text-base font-bold text-neutral-900 dark:text-white font-heading leading-tight">
+                              {centro.nombre}
+                            </h4>
+                            {centro.verificado ? (
+                              <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800/30 shrink-0">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Verificado
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/30 shrink-0">
+                                <ShieldAlert className="h-3 w-3" />
+                                Por Verificar
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Ubicación */}
+                          <div className="flex items-start gap-1.5 text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                            <MapPin className="h-4 w-4 text-neutral-400 shrink-0 mt-0.5" />
+                            <span>
+                              <strong className="text-neutral-800 dark:text-neutral-200">
+                                {isExtranjeroView ? `${centro.ciudad}, ${centro.pais}` : centro.estado}
+                              </strong> — {centro.direccion}
+                            </span>
+                          </div>
+
+                          {/* Contacto */}
+                          <div className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
+                            <Phone className="h-4 w-4 text-neutral-400 shrink-0" />
+                            <span>{centro.contacto}</span>
+                          </div>
+                        </div>
+
+                        {/* Insumos solicitados */}
+                        <div className="space-y-1.5 pt-3 border-t border-neutral-100 dark:border-neutral-800/50 flex flex-col sm:flex-row justify-between sm:items-end gap-3">
+                          <div className="space-y-1.5 flex-1">
+                            <span className="block text-[10px] font-bold text-neutral-450 dark:text-neutral-500 uppercase tracking-wider">
+                              Necesidades Urgentes
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {centro.necesidades.map((necesidad, idx) => (
+                                <span
+                                  key={idx}
+                                  className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/20"
+                                >
+                                  {necesidad}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setReportingCentro({ id: centro.id, nombre: centro.nombre });
+                              setIsReportCentroOpen(true);
+                            }}
+                            className="flex items-center gap-1 text-[10px] font-bold text-red-500 hover:text-red-700 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 px-2.5 py-1 rounded-lg shrink-0 cursor-pointer self-start sm:self-auto transition-colors"
+                          >
+                            <Flag className="h-3 w-3" />
+                            Reportar Problema
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                    <p className="text-neutral-400 dark:text-neutral-500 text-sm">
+                      No se encontraron centros de acopio que coincidan con los filtros aplicados.
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()) : activeView === 'personas' ? (
             <div className="space-y-6">
               {/* Encabezado Personas Desaparecidas con Estadísticas */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start border-b border-neutral-200 dark:border-neutral-800 pb-6">

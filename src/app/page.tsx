@@ -20,6 +20,7 @@ import { RegisterPetForm } from "@/components/RegisterPetForm";
 import { PetDetailModal } from "@/components/PetDetailModal";
 import { ReportCentroForm } from "@/components/ReportCentroForm";
 import { Footer } from "@/components/Footer";
+import { AnnouncementModal } from "@/components/AnnouncementModal";
 import { MOCK_DESAPARECIDOS, PersonaDesaparecida } from "@/data/mockDesaparecidos";
 import { Mascota, MOCK_MASCOTAS } from "@/data/mockMascotas";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -1636,6 +1637,9 @@ export default function Home() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Modal de Anuncio de Transición / Dirección */}
+        <AnnouncementModal />
 
       </main>
       <Footer />

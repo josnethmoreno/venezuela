@@ -161,7 +161,7 @@ export function PetDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={(val) => { if (!val) handleClose(); }}>
-      <DialogContent className="sm:max-w-xl w-[95%] bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-0 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-xl bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-0 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         
         {/* Cabecera */}
         <div className="px-6 py-4 border-b border-neutral-100 dark:border-neutral-800/50 flex items-center justify-between bg-neutral-50/55 dark:bg-neutral-900/10">

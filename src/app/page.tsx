@@ -1613,7 +1613,7 @@ export default function Home() {
 
         {/* Modal para Reportar Centro de Acopio */}
         <Dialog open={isReportCentroOpen} onOpenChange={setIsReportCentroOpen}>
-          <DialogContent className="sm:max-w-md w-[95%] bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
+          <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
             <DialogHeader>
               <DialogTitle className="text-lg font-bold font-heading text-neutral-900 dark:text-white">
                 Reportar Problema

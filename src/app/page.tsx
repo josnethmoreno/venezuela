@@ -961,13 +961,11 @@ export default function Home() {
           </a>
 
           {/* Tercer botón (Emerald) - Mascotas */}
-          <button
-            onClick={() => setActiveView('mascotas')}
-            className={`group relative flex items-start gap-4 p-6 rounded-2xl border border-emerald-500 text-left transition-all duration-300 cursor-pointer bg-emerald-600 text-white shadow-md ${
-              activeView === 'mascotas'
-                ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-neutral-950 dark:ring-offset-neutral-900 shadow-[0_0_25px_rgba(16,185,129,0.25)] scale-[1.02]'
-                : 'hover:border-emerald-400 hover:scale-[1.01]'
-            }`}
+          <a
+            href="https://mascotasporvenezuela.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative flex items-start gap-4 p-6 rounded-2xl border border-emerald-500 text-left transition-all duration-300 cursor-pointer bg-emerald-600 text-white shadow-md hover:border-emerald-400 hover:scale-[1.01]"
           >
             <div className="p-3 rounded-xl bg-white text-emerald-600 transition-colors">
               <PawPrint className="h-6 w-6" />
@@ -983,10 +981,7 @@ export default function Home() {
                 Registra y busca mascotas perdidas o encontradas
               </p>
             </div>
-            {activeView === 'mascotas' && (
-              <span className="absolute top-4 right-4 flex h-2 w-2 rounded-full bg-white animate-ping" />
-            )}
-          </button>
+          </a>
 
           {/* Cuarto botón (Amber) - Donar */}
           <a

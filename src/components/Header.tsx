@@ -89,16 +89,14 @@ export function Header({ scrolledPastNav = false, activeView = 'acopio', setActi
             >
               Personas
             </a>
-            <button
-              onClick={() => setActiveView('mascotas')}
-              className={`flex-1 py-1.5 text-[10px] font-bold rounded-xl border transition-all cursor-pointer text-center ${
-                activeView === 'mascotas'
-                  ? 'bg-emerald-600 text-white border-emerald-500 ring-2 ring-emerald-400/30 shadow-sm'
-                  : 'bg-transparent text-emerald-600 dark:text-emerald-400 border-emerald-600'
-              }`}
+            <a
+              href="https://mascotasporvenezuela.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-grow md:flex-grow-0 flex-1 py-1.5 text-[10px] font-bold rounded-xl border transition-all cursor-pointer text-center bg-transparent text-emerald-650 dark:text-emerald-450 border-emerald-600 dark:border-emerald-500/50 flex items-center justify-center"
             >
               Mascotas
-            </button>
+            </a>
             <a
               href="https://venezuelareporta.org/recursos#donar"
               target="_blank"

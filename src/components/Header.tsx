@@ -6,11 +6,9 @@ import { useTheme } from "next-themes";
 
 interface HeaderProps {
   scrolledPastNav?: boolean;
-  activeView?: 'acopio' | 'mascotas';
-  setActiveView?: (view: 'acopio' | 'mascotas') => void;
 }
 
-export function Header({ scrolledPastNav = false, activeView = 'acopio', setActiveView }: HeaderProps) {
+export function Header({ scrolledPastNav = false }: HeaderProps) {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -69,7 +67,7 @@ export function Header({ scrolledPastNav = false, activeView = 'acopio', setActi
         </p>
 
         {/* Mini Navigation Buttons (Shown only when scrolled past navigation on mobile) */}
-        {scrolledPastNav && setActiveView && (
+        {scrolledPastNav && (
           <div className="flex md:hidden w-full gap-[4px] mt-1.5 border-t border-neutral-100 dark:border-neutral-900/50 pt-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
             <a
               href="https://acopiove.org/"

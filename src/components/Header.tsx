@@ -71,16 +71,14 @@ export function Header({ scrolledPastNav = false, activeView = 'acopio', setActi
         {/* Mini Navigation Buttons (Shown only when scrolled past navigation on mobile) */}
         {scrolledPastNav && setActiveView && (
           <div className="flex md:hidden w-full gap-[4px] mt-1.5 border-t border-neutral-100 dark:border-neutral-900/50 pt-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
-            <button
-              onClick={() => setActiveView('acopio')}
-              className={`flex-1 py-1.5 text-[10px] font-bold rounded-xl border transition-all cursor-pointer text-center ${
-                activeView === 'acopio'
-                  ? 'bg-white text-neutral-900 border-neutral-200 dark:bg-white dark:text-neutral-950 dark:border-white ring-2 ring-neutral-400/30 shadow-sm'
-                  : 'bg-neutral-900 text-white border-white'
-              }`}
+            <a
+              href="https://acopiove.org/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 py-1.5 text-[10px] font-bold rounded-xl border transition-all cursor-pointer text-center bg-transparent text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-500/50 flex items-center justify-center"
             >
               Acopio
-            </button>
+            </a>
             <a
               href="https://desaparecidosterremotovenezuela.com/"
               target="_blank"
